@@ -276,16 +276,18 @@ class LicenceFlow_Admin {
         $clean_value = $security->sanitize_license_field( $raw_value, $type );
         $serialized  = lflow_serialize_license_value( $clean_value, $type );
 
+        $delivre_x_times = max( 1, $security->sanitize_int( $_POST['delivre_x_times'] ?? 1 ) );
         $data = array(
-            'product_id'      => $product_id,
-            'variation_id'    => $variation_id,
-            'license_key'     => $serialized,
-            'license_type'    => $type,
-            'license_status'  => sanitize_key( $_POST['license_status'] ?? 'available' ),
-            'expiration_date' => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
-            'valid'           => $security->sanitize_int( $_POST['valid'] ?? 0 ),
-            'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
-            'delivre_x_times' => max( 1, $security->sanitize_int( $_POST['delivre_x_times'] ?? 1 ) ),
+            'product_id'                => $product_id,
+            'variation_id'              => $variation_id,
+            'license_key'               => $serialized,
+            'license_type'              => $type,
+            'license_status'            => sanitize_key( $_POST['license_status'] ?? 'available' ),
+            'expiration_date'           => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
+            'valid'                     => $security->sanitize_int( $_POST['valid'] ?? 0 ),
+            'admin_notes'               => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
+            'delivre_x_times'           => $delivre_x_times,
+            'remaining_delivre_x_times' => $delivre_x_times,
         );
 
         // Remove empty expiration_date to avoid storing '0000-00-00'
