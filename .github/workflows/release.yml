@@ -1,0 +1,58 @@
+name: Release
+
+# Triggered when a tag like v1.0.1 is pushed
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+jobs:
+  build:
+    name: Build & attach licenceflow.zip
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out the repository at the tagged commit
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Determine the version from the tag (strips leading "v")
+      - name: Set version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # 3. Build the ZIP with the correct folder name "licenceflow/"
+      #    Excludes development-only files so the ZIP is production-ready.
+      - name: Build licenceflow.zip
+        run: |
+          mkdir -p /tmp/build/licenceflow
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='*.zip' \
+            --exclude='node_modules' \
+            --exclude='.DS_Store' \
+            --exclude='Thumbs.db' \
+            --exclude='CONTEXT.md' \
+            --exclude='*.log' \
+            . /tmp/build/licenceflow/
+          cd /tmp/build
+          zip -r licenceflow.zip licenceflow/
+          echo "ZIP created: $(du -sh licenceflow.zip | cut -f1)"
+
+      # 4. Create the GitHub Release (from the pushed tag) and upload the ZIP
+      - name: Create Release & upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "LicenceFlow v${{ steps.version.outputs.version }}"
+          body: |
+            ## LicenceFlow v${{ steps.version.outputs.version }}
+
+            **Installation / Mise à jour :**
+            - Depuis votre tableau de bord WordPress : *Tableau de bord → Mises à jour*
+            - Ou téléchargez `licenceflow.zip` ci-dessous et installez-le manuellement via *Extensions → Ajouter → Téléverser*.
+          files: /tmp/build/licenceflow.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

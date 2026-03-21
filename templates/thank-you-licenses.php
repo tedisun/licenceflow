@@ -1,0 +1,30 @@
+<?php
+/**
+ * LicenceFlow — Thank-you page license display template
+ *
+ * Variables: $licenses (array), $order (WC_Order)
+ *
+ * @package LicenceFlow
+ */
+
+defined( 'ABSPATH' ) || exit;
+
+if ( empty( $licenses ) ) return;
+
+wp_enqueue_style( 'lflow-frontend', LFLOW_URL . 'assets/css/frontend.css', array(), LFLOW_VERSION );
+
+$label_plural = LicenceFlow_Settings::get( 'lflow_meta_key_name_plural', __( 'Licences', 'licenceflow' ) );
+?>
+<section class="lflow-customer-licenses woocommerce-order-details">
+
+    <h2 class="woocommerce-order-details__title lflow-licenses-title">
+        <?php echo esc_html( $label_plural ); ?>
+    </h2>
+
+    <div class="lflow-license-cards">
+        <?php foreach ( $licenses as $license ) :
+            lflow_render_license_card( $license, 'website' );
+        endforeach; ?>
+    </div>
+
+</section>

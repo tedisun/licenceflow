@@ -1,0 +1,118 @@
+# Copyright (C) 2024 Tedisun SARL
+# This file is distributed under the GPL-2.0+.
+msgid ""
+msgstr ""
+"Project-Id-Version: LicenceFlow 1.0.0\n"
+"Report-Msgid-Bugs-To: https://tedisun.com/\n"
+"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"X-Generator: LicenceFlow\n"
+"X-Domain: licenceflow\n"
+
+#. Plugin Name of the plugin
+msgid "LicenceFlow"
+msgstr ""
+
+#. Plugin URI of the plugin
+msgid "https://tedisun.com/licenceflow"
+msgstr ""
+
+#. Description of the plugin
+msgid "Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase."
+msgstr ""
+
+#. Author of the plugin
+msgid "Tedisun SARL"
+msgstr ""
+
+msgid "Clé de licence"
+msgstr ""
+
+msgid "Compte (identifiants)"
+msgstr ""
+
+msgid "Lien d'activation"
+msgstr ""
+
+msgid "Code d'accès"
+msgstr ""
+
+msgid "Disponible"
+msgstr ""
+
+msgid "Vendu"
+msgstr ""
+
+msgid "Actif"
+msgstr ""
+
+msgid "Inactif"
+msgstr ""
+
+msgid "Expiré"
+msgstr ""
+
+msgid "Retourné"
+msgstr ""
+
+msgid "Échangé"
+msgstr ""
+
+msgid "N'expire pas"
+msgstr ""
+
+msgid "N/A"
+msgstr ""
+
+msgid "LicenceFlow"
+msgstr ""
+
+msgid "Démarrage"
+msgstr ""
+
+msgid "Licences"
+msgstr ""
+
+msgid "Ajouter une licence"
+msgstr ""
+
+msgid "Statistiques"
+msgstr ""
+
+msgid "Import / Export"
+msgstr ""
+
+msgid "Réglages"
+msgstr ""
+
+msgid "Valide jusqu'au : %s"
+msgstr ""
+
+msgid "Identifiant"
+msgstr ""
+
+msgid "Mot de passe"
+msgstr ""
+
+msgid "Afficher"
+msgstr ""
+
+msgid "Cliquez pour activer"
+msgstr ""
+
+msgid "Copier"
+msgstr ""
+
+msgid "Copié !"
+msgstr ""
+
+msgid "Licence"
+msgstr ""
+
+msgid "Licences"
+msgstr ""

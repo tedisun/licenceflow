@@ -1,0 +1,101 @@
+{
+  "name": "LicenceFlow",
+  "description": "Manage WooCommerce digital licenses via LicenceFlow REST API. Create, read, update, delete licenses and retrieve statistics.",
+  "version": "1.0.0",
+  "base_url": "https://YOUR-SITE.com/wp-json/licenceflow/mcp/v1",
+  "auth": {
+    "type": "header",
+    "header": "X-LicenceFlow-API-Key",
+    "description": "API key from LicenceFlow > Settings > General > MCP API Key"
+  },
+  "tools": [
+    {
+      "name": "list_licenses",
+      "description": "List licenses with optional filters. Returns paginated results.",
+      "method": "GET",
+      "path": "/licenses",
+      "parameters": {
+        "status":      { "type": "string", "description": "Filter by status: available, sold, active, inactive, expired, returned, redeemed" },
+        "product_id":  { "type": "integer", "description": "Filter by WooCommerce product ID" },
+        "type":        { "type": "string", "description": "Filter by license type: key, account, link, code" },
+        "search":      { "type": "string", "description": "Search by customer name or email" },
+        "page":        { "type": "integer", "description": "Page number (default: 1)" },
+        "per_page":    { "type": "integer", "description": "Results per page, max 100 (default: 20)" },
+        "include_key": { "type": "boolean", "description": "Include decrypted license value in response (default: false)" }
+      }
+    },
+    {
+      "name": "get_license",
+      "description": "Get a single license by ID.",
+      "method": "GET",
+      "path": "/licenses/{id}",
+      "parameters": {
+        "id":          { "type": "integer", "required": true, "description": "License ID" },
+        "include_key": { "type": "boolean", "description": "Include decrypted license value (default: false)" }
+      }
+    },
+    {
+      "name": "create_license",
+      "description": "Create a new license. The license_key format depends on license_type:\n- key: plain string\n- account: {\"username\": \"...\", \"password\": \"...\"}\n- link: {\"url\": \"https://...\", \"label\": \"...\"}\n- code: {\"code\": \"...\", \"note\": \"...\"}",
+      "method": "POST",
+      "path": "/licenses",
+      "parameters": {
+        "product_id":      { "type": "integer", "required": true, "description": "WooCommerce product ID" },
+        "variation_id":    { "type": "integer", "description": "WooCommerce variation ID (0 for simple products)" },
+        "license_type":    { "type": "string", "description": "key | account | link | code (default: key)" },
+        "license_key":     { "required": true, "description": "License value (string for key type, object for others)" },
+        "license_status":  { "type": "string", "description": "Status (default: available)" },
+        "expiration_date": { "type": "string", "description": "Admin expiry date Y-m-d (not shown to customer)" },
+        "valid":           { "type": "integer", "description": "Customer validity in days from purchase date" },
+        "delivre_x_times": { "type": "integer", "description": "Number of times this license can be re-delivered (default: 1)" },
+        "admin_notes":     { "type": "string", "description": "Internal admin notes (never shown to customer)" }
+      }
+    },
+    {
+      "name": "update_license",
+      "description": "Update one or more fields of an existing license.",
+      "method": "PUT",
+      "path": "/licenses/{id}",
+      "parameters": {
+        "id":              { "type": "integer", "required": true },
+        "license_status":  { "type": "string" },
+        "expiration_date": { "type": "string" },
+        "valid":           { "type": "integer" },
+        "admin_notes":     { "type": "string" },
+        "license_key":     { "description": "New license value (will be re-encrypted)" }
+      }
+    },
+    {
+      "name": "delete_license",
+      "description": "Permanently delete a license and its metadata.",
+      "method": "DELETE",
+      "path": "/licenses/{id}",
+      "parameters": {
+        "id": { "type": "integer", "required": true }
+      }
+    },
+    {
+      "name": "deliver_license",
+      "description": "Manually assign and deliver a license to a WooCommerce order.",
+      "method": "POST",
+      "path": "/licenses/{id}/deliver",
+      "parameters": {
+        "id":       { "type": "integer", "required": true, "description": "License ID" },
+        "order_id": { "type": "integer", "required": true, "description": "WooCommerce order ID" }
+      }
+    },
+    {
+      "name": "get_stats",
+      "description": "Get license statistics: counts by status and type, top products, low stock alerts, expiring soon, recent deliveries.",
+      "method": "GET",
+      "path": "/stats",
+      "parameters": {}
+    }
+  ],
+  "examples": {
+    "list_available": "GET /licenses?status=available&per_page=10",
+    "create_account_license": "POST /licenses {\"product_id\": 42, \"license_type\": \"account\", \"license_key\": {\"username\": \"user@example.com\", \"password\": \"secret\"}}",
+    "get_stats": "GET /stats",
+    "deliver_to_order": "POST /licenses/15/deliver {\"order_id\": 1234}"
+  }
+}

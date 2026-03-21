@@ -1,0 +1,458 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   LicenceFlow — Admin styles
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Layout ─────────────────────────────────────────────────────────────────── */
+
+.lflow-wrap {
+    max-width: 1200px;
+}
+
+.lflow-wrap h1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lflow-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────── */
+
+.lflow-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+
+.lflow-card h2 {
+    margin-top: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+/* ── Getting started ──────────────────────────────────────────────────────────── */
+
+.lflow-gs-hero {
+    background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+    color: #fff;
+    border-radius: 6px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+}
+
+.lflow-gs-hero h2 {
+    font-size: 1.5rem;
+    margin: 0 0 8px;
+    color: #fff;
+}
+
+.lflow-gs-hero p {
+    margin: 0;
+    font-size: 1rem;
+    opacity: .9;
+}
+
+.lflow-gs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.lflow-gs-type-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+}
+
+.lflow-gs-type-card .lflow-type-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.lflow-gs-type-card h3 {
+    margin: 0 0 6px;
+    font-size: .95rem;
+}
+
+.lflow-gs-type-card p {
+    margin: 0 0 8px;
+    font-size: .85rem;
+    color: #646970;
+}
+
+.lflow-gs-type-card code {
+    font-size: .8rem;
+    background: #f6f7f7;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.lflow-gs-steps {
+    counter-reset: lflow-step;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lflow-gs-steps li {
+    counter-increment: lflow-step;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f1;
+}
+
+.lflow-gs-steps li:last-child {
+    border-bottom: none;
+}
+
+.lflow-gs-steps li::before {
+    content: counter(lflow-step);
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: #2271b1;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: .85rem;
+}
+
+.lflow-checklist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lflow-checklist li {
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid #f0f0f1;
+    font-size: .9rem;
+}
+
+.lflow-checklist li:last-child {
+    border-bottom: none;
+}
+
+.lflow-checklist li::before {
+    content: "☐";
+    font-size: 1.1rem;
+    color: #2271b1;
+}
+
+/* ── Statistics ──────────────────────────────────────────────────────────────── */
+
+.lflow-stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.lflow-stat-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+}
+
+.lflow-stat-card .lflow-stat-number {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #2271b1;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+
+.lflow-stat-card .lflow-stat-label {
+    font-size: .85rem;
+    color: #646970;
+}
+
+.lflow-stat-card.lflow-stat-available .lflow-stat-number { color: #00a32a; }
+.lflow-stat-card.lflow-stat-sold     .lflow-stat-number { color: #2271b1; }
+.lflow-stat-card.lflow-stat-expired  .lflow-stat-number { color: #d63638; }
+
+.lflow-bar-chart {
+    margin: 12px 0;
+}
+
+.lflow-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: .85rem;
+}
+
+.lflow-bar-label {
+    width: 110px;
+    flex-shrink: 0;
+    color: #3c434a;
+}
+
+.lflow-bar-track {
+    flex: 1;
+    background: #f0f0f1;
+    border-radius: 3px;
+    height: 12px;
+    overflow: hidden;
+}
+
+.lflow-bar-fill {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 3px;
+    min-width: 2px;
+    transition: width .3s ease;
+}
+
+.lflow-bar-count {
+    width: 40px;
+    text-align: right;
+    color: #646970;
+}
+
+.lflow-alert-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.lflow-alert-list li {
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-size: .875rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lflow-alert-list li.lflow-alert-warn {
+    background: #fcf9e8;
+    border-left: 4px solid #dba617;
+}
+
+.lflow-alert-list li.lflow-alert-error {
+    background: #fcf0f1;
+    border-left: 4px solid #d63638;
+}
+
+/* ── License list table ───────────────────────────────────────────────────────── */
+
+.lflow-status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: .78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+
+.lflow-status-available { background: #edfaed; color: #1a7a1a; }
+.lflow-status-sold      { background: #e8f0fb; color: #135e96; }
+.lflow-status-active    { background: #e9f8f0; color: #007a46; }
+.lflow-status-inactive  { background: #f6f7f7; color: #646970; }
+.lflow-status-expired   { background: #fcf0f1; color: #d63638; }
+.lflow-status-returned  { background: #fef8ee; color: #996600; }
+.lflow-status-redeemed  { background: #f0eeff; color: #5741d9; }
+
+.lflow-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .8rem;
+    color: #646970;
+}
+
+/* ── License form ────────────────────────────────────────────────────────────── */
+
+.lflow-form-wrap {
+    max-width: 680px;
+}
+
+.lflow-form-table td,
+.lflow-form-table th {
+    padding: 12px 10px;
+    vertical-align: top;
+}
+
+.lflow-license-field-group {
+    display: none;
+}
+
+.lflow-license-field-group.lflow-active {
+    display: block;
+}
+
+.lflow-field-hint {
+    font-size: .82rem;
+    color: #646970;
+    margin-top: 4px;
+}
+
+.lflow-expiry-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* ── Settings ────────────────────────────────────────────────────────────────── */
+
+.lflow-settings-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #c3c4c7;
+    margin-bottom: 20px;
+}
+
+.lflow-settings-tabs a {
+    padding: 8px 16px;
+    text-decoration: none;
+    color: #3c434a;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    margin-bottom: -1px;
+    font-size: .9rem;
+}
+
+.lflow-settings-tabs a:hover {
+    color: #2271b1;
+    background: #f6f7f7;
+}
+
+.lflow-settings-tabs a.active {
+    background: #fff;
+    border-color: #c3c4c7;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+.lflow-enc-warning {
+    background: #fcf9e8;
+    border-left: 4px solid #dba617;
+    padding: 10px 14px;
+    border-radius: 0 4px 4px 0;
+    font-size: .875rem;
+    margin-bottom: 16px;
+}
+
+.lflow-api-key-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lflow-api-key-display input[type="text"] {
+    font-family: monospace;
+    flex: 1;
+}
+
+/* ── Import/Export ────────────────────────────────────────────────────────────── */
+
+.lflow-ie-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+@media (max-width: 782px) {
+    .lflow-ie-grid {
+        grid-template-columns: 1fr;
+    }
+    .lflow-gs-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ── Metabox ─────────────────────────────────────────────────────────────────── */
+
+.lflow-metabox-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #dcdcde;
+    margin: -6px -12px 16px;
+    padding: 0 12px;
+}
+
+.lflow-metabox-tabs a {
+    padding: 8px 12px;
+    text-decoration: none;
+    color: #646970;
+    font-size: .85rem;
+    border-bottom: 2px solid transparent;
+}
+
+.lflow-metabox-tabs a.active,
+.lflow-metabox-tabs a:hover {
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+}
+
+.lflow-metabox-tab-content {
+    display: none;
+}
+
+.lflow-metabox-tab-content.active {
+    display: block;
+}
+
+.lflow-variation-row {
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fafafa;
+}
+
+.lflow-variation-row h4 {
+    margin: 0 0 10px;
+    font-size: .875rem;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+/* ── Misc ────────────────────────────────────────────────────────────────────── */
+
+.lflow-notice-inline {
+    display: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: .875rem;
+    margin-top: 8px;
+}
+
+.lflow-notice-inline.success {
+    background: #edfaed;
+    color: #1a7a1a;
+    display: block;
+}
+
+.lflow-notice-inline.error {
+    background: #fcf0f1;
+    color: #d63638;
+    display: block;
+}
