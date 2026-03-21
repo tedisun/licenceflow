@@ -95,27 +95,45 @@ class LicenceFlow_Core {
 
             if ( empty( $licenses ) ) continue;
 
+            // Group by license_id to handle delivre_x_times
+            // (fetch_available may return the same license multiple times)
+            $license_usage    = array(); // license_id => ['row' => $row, 'count' => N]
             $item_license_ids = array();
-            foreach ( $licenses as $license ) {
-                $license_id = (int) $license['license_id'];
 
-                // Update license to sold
-                LicenceFlow_License_DB::update( $license_id, array(
-                    'license_status'            => 'sold',
+            foreach ( $licenses as $license ) {
+                $lid = (int) $license['license_id'];
+                if ( ! isset( $license_usage[ $lid ] ) ) {
+                    $license_usage[ $lid ] = array( 'row' => $license, 'count' => 0 );
+                }
+                $license_usage[ $lid ]['count']++;
+                $item_license_ids[] = $lid;
+                $all_ids[]          = $lid;
+            }
+
+            foreach ( $license_usage as $lid => $entry ) {
+                $row           = $entry['row'];
+                $usage         = $entry['count'];
+                $new_remaining = max( 0, (int) $row['remaining_delivre_x_times'] - $usage );
+
+                $update_data = array(
+                    'remaining_delivre_x_times' => $new_remaining,
                     'sold_date'                 => current_time( 'Y-m-d' ),
                     'activation_date'           => current_time( 'Y-m-d' ),
                     'owner_first_name'          => $order->get_billing_first_name(),
                     'owner_last_name'           => $order->get_billing_last_name(),
                     'owner_email_address'       => $order->get_billing_email(),
                     'order_id'                  => $order_id,
-                    'remaining_delivre_x_times' => max( 0, ( (int) $license['remaining_delivre_x_times'] ) - 1 ),
-                ) );
+                );
 
-                $item_license_ids[] = $license_id;
-                $all_ids[]          = $license_id;
+                // Only mark 'sold' when all delivery slots are exhausted
+                if ( $new_remaining <= 0 ) {
+                    $update_data['license_status'] = 'sold';
+                }
+
+                LicenceFlow_License_DB::update( $lid, $update_data );
             }
 
-            $delivery_map[ $item_key ] = $item_license_ids;
+            $delivery_map[ $item_key ] = array_values( array_unique( $item_license_ids ) );
 
             if ( $stock_sync ) {
                 $this->sync_product_stock( $product_id, $variation_id );
@@ -453,8 +471,12 @@ class LicenceFlow_Core {
 
         $result = array();
 
-        foreach ( $license_ids as $license_id ) {
-            $license = LicenceFlow_License_DB::get( (int) $license_id );
+        // Count how many times each license_id appears (delivre_x_times scenario)
+        $id_counts = array_count_values( array_map( 'intval', $license_ids ) );
+
+        // Process each unique license_id once
+        foreach ( $id_counts as $license_id => $times ) {
+            $license = LicenceFlow_License_DB::get( $license_id );
             if ( ! $license ) continue;
 
             // Channel filter
@@ -466,6 +488,9 @@ class LicenceFlow_Core {
 
             // Customer expiry (calculated from sold_date + valid) — NEVER expose expiration_date
             $license['customer_expiry'] = lflow_customer_expiry_date( $license['sold_date'] ?? '', (int) ( $license['valid'] ?? 0 ) );
+
+            // How many times this license was delivered for this order
+            $license['times'] = $times;
 
             // Strip admin-only fields before passing to templates
             unset( $license['expiration_date'], $license['admin_notes'], $license['license_key'] );

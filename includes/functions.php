@@ -350,9 +350,21 @@ function lflow_render_license_card( array $license, string $context = 'website' 
             break;
     }
 
+    // "Utilisable X fois" badge for multi-delivery licenses
+    $times = isset( $license['times'] ) ? (int) $license['times'] : 1;
+    if ( $times > 1 ) {
+        echo '<p style="margin:10px 0 0; font-size:.85em; color:#646970;">';
+        printf(
+            /* translators: %d: number of times the license can be used */
+            esc_html__( 'Utilisable %d fois', 'licenceflow' ),
+            $times
+        );
+        echo '</p>';
+    }
+
     // Customer expiry
     if ( $expiry ) {
-        echo '<p style="margin:10px 0 0; font-size:.85em; color:#646970;">';
+        echo '<p style="margin:' . ( $times > 1 ? '4px' : '10px' ) . ' 0 0; font-size:.85em; color:#646970;">';
         printf(
             esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ),
             '<strong>' . esc_html( $expiry ) . '</strong>'

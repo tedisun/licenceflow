@@ -149,16 +149,20 @@ class LicenceFlow_License_DB {
     public static function fetch_available( int $product_id, int $variation_id, int $qty, bool $fifo = true ): array {
         global $wpdb;
 
+        if ( $qty <= 0 ) return array();
+
         $order = $fifo ? 'ASC' : 'DESC';
 
+        // Fetch all available licenses with remaining uses > 0 (no LIMIT — we need to allocate)
         if ( $variation_id > 0 ) {
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT * FROM {$wpdb->prefix}lflow_licenses
-                     WHERE product_id = %d AND variation_id = %d AND license_status = 'available'
-                     ORDER BY license_id $order
-                     LIMIT %d",
-                    $product_id, $variation_id, $qty
+                     WHERE product_id = %d AND variation_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times > 0
+                     ORDER BY license_id $order",
+                    $product_id, $variation_id
                 ),
                 ARRAY_A
             );
@@ -166,21 +170,39 @@ class LicenceFlow_License_DB {
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT * FROM {$wpdb->prefix}lflow_licenses
-                     WHERE product_id = %d AND license_status = 'available'
-                     ORDER BY license_id $order
-                     LIMIT %d",
-                    $product_id, $qty
+                     WHERE product_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times > 0
+                     ORDER BY license_id $order",
+                    $product_id
                 ),
                 ARRAY_A
             );
         }
+
+        if ( empty( $rows ) ) return array();
 
         foreach ( $rows as &$row ) {
             $row['license_key'] = lflow_decrypt( $row['license_key'] );
         }
         unset( $row );
 
-        return $rows ?: array();
+        // Build result: each license contributes up to remaining_delivre_x_times slots.
+        // If there are enough distinct licenses, each appears once.
+        // If not, the same license is repeated to fill the requested qty.
+        $result          = array();
+        $remaining_needed = $qty;
+
+        foreach ( $rows as $row ) {
+            if ( $remaining_needed <= 0 ) break;
+            $can_contribute  = min( (int) $row['remaining_delivre_x_times'], $remaining_needed );
+            for ( $i = 0; $i < $can_contribute; $i++ ) {
+                $result[] = $row;
+            }
+            $remaining_needed -= $can_contribute;
+        }
+
+        return $result;
     }
 
     // ── Insert ────────────────────────────────────────────────────────────────

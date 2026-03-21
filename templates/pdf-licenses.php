@@ -28,6 +28,7 @@ $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
         $type   = $license['license_type'] ?? 'key';
         $parsed = $license['parsed_value']  ?? array();
         $expiry = $license['customer_expiry'] ?? '';
+        $times  = isset( $license['times'] ) ? (int) $license['times'] : 1;
 
         // Product name
         $product = wc_get_product( $license['product_id'] ?? 0 );
@@ -76,8 +77,20 @@ $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
             <?php endif; ?>
         <?php endif; ?>
 
-        <?php if ( $expiry ) : ?>
+        <?php if ( $times > 1 ) : ?>
             <p style="margin:6px 0 0; font-size:11px; color:#555;">
+                <?php
+                printf(
+                    /* translators: %d: number of times the license can be used */
+                    esc_html__( 'Utilisable %d fois', 'licenceflow' ),
+                    $times
+                );
+                ?>
+            </p>
+        <?php endif; ?>
+
+        <?php if ( $expiry ) : ?>
+            <p style="margin:4px 0 0; font-size:11px; color:#555;">
                 <?php
                 printf(
                     /* translators: %s: expiry date */
