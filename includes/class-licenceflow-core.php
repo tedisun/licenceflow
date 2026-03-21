@@ -134,22 +134,61 @@ class LicenceFlow_Core {
 
     /**
      * Sync WooCommerce stock to available license count.
+     *
+     * Only syncs if:
+     * - lflow_stock_sync option is on
+     * - The product already has stock management enabled (_manage_stock = yes)
+     *   (we never force-enable it — the admin controls this in WooCommerce)
+     *
+     * Respects WooCommerce backorder setting:
+     * - If backorders are allowed and stock = 0 → set status to 'onbackorder'
+     * - If backorders are not allowed and stock = 0 → set status to 'outofstock'
      */
     public function sync_product_stock( int $product_id, int $variation_id = 0 ): void {
-        $count = LicenceFlow_License_DB::count_available( $product_id, $variation_id );
+        if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) return;
 
+        $target_id = $variation_id > 0 ? $variation_id : $product_id;
+
+        // Only sync if WooCommerce stock management is already enabled on this product
+        $manage_stock = get_post_meta( $target_id, '_manage_stock', true );
+        if ( $manage_stock !== 'yes' ) return;
+
+        // Use SUM(remaining_delivre_x_times) to count total delivery capacity
+        global $wpdb;
         if ( $variation_id > 0 ) {
-            $product = wc_get_product( $variation_id );
+            $count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COALESCE(SUM(remaining_delivre_x_times), 0)
+                 FROM {$wpdb->prefix}lflow_licenses
+                 WHERE product_id = %d AND variation_id = %d AND license_status = 'available'",
+                $product_id, $variation_id
+            ) );
         } else {
-            $product = wc_get_product( $product_id );
+            $count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COALESCE(SUM(remaining_delivre_x_times), 0)
+                 FROM {$wpdb->prefix}lflow_licenses
+                 WHERE product_id = %d AND license_status = 'available'",
+                $product_id
+            ) );
         }
 
-        if ( ! $product ) return;
+        if ( $count > 0 ) {
+            update_post_meta( $target_id, '_stock', $count );
+            update_post_meta( $target_id, '_stock_status', 'instock' );
+            wp_remove_object_terms( $target_id, 'outofstock', 'product_visibility' );
+        } else {
+            $backorders = get_post_meta( $target_id, '_backorders', true );
+            if ( in_array( $backorders, array( 'yes', 'notify' ), true ) ) {
+                update_post_meta( $target_id, '_stock_status', 'onbackorder' );
+                wp_remove_object_terms( $target_id, 'outofstock', 'product_visibility' );
+            } else {
+                update_post_meta( $target_id, '_stock', 0 );
+                update_post_meta( $target_id, '_stock_status', 'outofstock' );
+                wp_set_post_terms( $target_id, 'outofstock', 'product_visibility', true );
+            }
+        }
 
-        $product->set_manage_stock( true );
-        $product->set_stock_quantity( $count );
-        $product->set_stock_status( $count > 0 ? 'instock' : 'outofstock' );
-        $product->save();
+        // Clear WooCommerce product cache
+        wc_delete_product_transients( $product_id );
     }
 
     // ── Cart validation ───────────────────────────────────────────────────────
@@ -199,23 +238,23 @@ class LicenceFlow_Core {
     public function inject_email_licenses( WC_Order $order, bool $sent_to_admin, bool $plain_text, WC_Email $email ): void {
         if ( $sent_to_admin ) return;
 
-        $licenses = $this->get_licenses_for_display( $order, 'email' );
+        // Force a fresh DB read — the order object passed by WooCommerce may be stale
+        // (meta was added during delivery in the same request but the cached object is unaware)
+        $fresh = wc_get_order( $order->get_id() );
+        if ( ! $fresh ) return;
+
+        $licenses = $this->get_licenses_for_display( $fresh, 'email' );
         if ( empty( $licenses ) ) return;
 
-        $show_on_top = LicenceFlow_Settings::is_on( 'lflow_show_on_top' );
-        if ( $show_on_top ) {
-            // Output happens via an earlier hook — handled differently
-            // For simplicity we always append after the table (show_on_top = cosmetic preference)
-        }
-
-        lflow_include_template( 'email-licenses.php', array( 'licenses' => $licenses, 'order' => $order ) );
+        lflow_include_template( 'email-licenses.php', array( 'licenses' => $licenses, 'order' => $fresh ) );
     }
 
     /**
      * Inject licenses on the thank-you page.
      */
     public function inject_thankyou_licenses( int $order_id ): void {
-        $order    = wc_get_order( $order_id );
+        // Fresh fetch — avoid stale cache after same-request delivery
+        $order = wc_get_order( $order_id );
         if ( ! $order ) return;
 
         // Guest access check
@@ -233,10 +272,14 @@ class LicenceFlow_Core {
     public function inject_order_history_licenses( WC_Order $order ): void {
         if ( LicenceFlow_Settings::is_on( 'lflow_hide_keys_on_site' ) ) return;
 
-        $licenses = $this->get_licenses_for_display( $order, 'website' );
+        // Fresh fetch for consistent meta reading
+        $fresh = wc_get_order( $order->get_id() );
+        if ( ! $fresh ) return;
+
+        $licenses = $this->get_licenses_for_display( $fresh, 'website' );
         if ( empty( $licenses ) ) return;
 
-        lflow_include_template( 'order-history-licenses.php', array( 'licenses' => $licenses, 'order' => $order ) );
+        lflow_include_template( 'order-history-licenses.php', array( 'licenses' => $licenses, 'order' => $fresh ) );
     }
 
     // ── Cron ──────────────────────────────────────────────────────────────────

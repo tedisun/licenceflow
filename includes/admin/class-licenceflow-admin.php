@@ -306,6 +306,9 @@ class LicenceFlow_Admin {
             wp_send_json_error( array( 'message' => __( 'Erreur lors de l\'enregistrement.', 'licenceflow' ) ) );
         }
 
+        // Sync stock after insert/update
+        LicenceFlow_Core::get_instance()->sync_product_stock( $product_id, $variation_id );
+
         wp_send_json_success( array(
             'license_id' => $id,
             'message'    => $license_id > 0
