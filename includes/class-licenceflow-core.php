@@ -236,17 +236,20 @@ class LicenceFlow_Core {
      * @param WC_Email $email
      */
     public function inject_email_licenses( WC_Order $order, bool $sent_to_admin, bool $plain_text, WC_Email $email ): void {
-        if ( $sent_to_admin ) return;
-
         // Force a fresh DB read — the order object passed by WooCommerce may be stale
         // (meta was added during delivery in the same request but the cached object is unaware)
         $fresh = wc_get_order( $order->get_id() );
         if ( ! $fresh ) return;
 
-        $licenses = $this->get_licenses_for_display( $fresh, 'email' );
+        $channel  = 'email';
+        $licenses = $this->get_licenses_for_display( $fresh, $channel );
         if ( empty( $licenses ) ) return;
 
-        lflow_include_template( 'email-licenses.php', array( 'licenses' => $licenses, 'order' => $fresh ) );
+        lflow_include_template( 'email-licenses.php', array(
+            'licenses'       => $licenses,
+            'order'          => $fresh,
+            'sent_to_admin'  => $sent_to_admin,
+        ) );
     }
 
     /**
