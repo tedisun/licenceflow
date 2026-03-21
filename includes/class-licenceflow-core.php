@@ -28,6 +28,9 @@ class LicenceFlow_Core {
         add_action( 'woocommerce_thankyou',                            array( $this, 'inject_thankyou_licenses' ), 10, 1 );
         add_action( 'woocommerce_order_details_after_order_table',     array( $this, 'inject_order_history_licenses' ), 10, 1 );
 
+        // WooCommerce PDF Invoices & Packing Slips integration
+        add_action( 'wpo_wcpdf_after_totals', array( $this, 'inject_pdf_licenses' ), 10, 2 );
+
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );
 
@@ -283,6 +286,42 @@ class LicenceFlow_Core {
         if ( empty( $licenses ) ) return;
 
         lflow_include_template( 'order-history-licenses.php', array( 'licenses' => $licenses, 'order' => $fresh ) );
+    }
+
+    // ── PDF invoice (WooCommerce PDF Invoices & Packing Slips) ────────────────
+
+    /**
+     * Inject licenses into the PDF invoice after the totals table.
+     *
+     * Hook: wpo_wcpdf_after_totals ($document_type, $document)
+     * Compatible with WooCommerce PDF Invoices & Packing Slips by Ewout Fernhout.
+     *
+     * @param string $document_type  'invoice', 'packing-slip', etc.
+     * @param object $document       WPO_WCPDF_Document instance
+     */
+    public function inject_pdf_licenses( $document_type, $document ): void {
+        // Only inject on invoices, not packing slips
+        if ( $document_type !== 'invoice' ) return;
+
+        // Retrieve the WC_Order from the document object (API varies by plugin version)
+        if ( method_exists( $document, 'get_order' ) ) {
+            $order = $document->get_order();
+        } elseif ( isset( $document->order ) ) {
+            $order = $document->order;
+        } else {
+            return;
+        }
+
+        if ( ! $order instanceof WC_Order ) return;
+
+        // Fresh fetch to avoid stale cache
+        $order = wc_get_order( $order->get_id() );
+        if ( ! $order ) return;
+
+        $licenses = $this->get_licenses_for_display( $order, 'email' );
+        if ( empty( $licenses ) ) return;
+
+        lflow_include_template( 'pdf-licenses.php', array( 'licenses' => $licenses, 'order' => $order ) );
     }
 
     // ── Cron ──────────────────────────────────────────────────────────────────
