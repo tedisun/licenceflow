@@ -118,7 +118,10 @@ class LicenceFlow_Admin {
             'licenceflow_page_lflow-settings',
         );
 
-        if ( ! in_array( $hook, $lflow_pages, true ) ) {
+        $on_product_page = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
+            && ( get_post_type() === 'product' || ( isset( $_GET['post_type'] ) && $_GET['post_type'] === 'product' ) );
+
+        if ( ! in_array( $hook, $lflow_pages, true ) && ! $on_product_page ) {
             return;
         }
 
@@ -140,6 +143,7 @@ class LicenceFlow_Admin {
         wp_localize_script( 'lflow-admin', 'lflow_admin', array(
             'ajax_url'      => admin_url( 'admin-ajax.php' ),
             'nonce'         => LicenceFlow_Security::get_instance()->create_nonce( 'admin' ),
+            'edit_url'      => admin_url( 'admin.php?page=lflow-licenses&action=edit' ),
             'license_types' => lflow_license_types(),
             'i18n'          => array(
                 'confirm_delete'  => __( 'Supprimer cette licence ? Cette action est irréversible.', 'licenceflow' ),

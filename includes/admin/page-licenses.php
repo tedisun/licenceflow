@@ -14,6 +14,12 @@ $table->prepare_items();
 ?>
 <div class="wrap lflow-wrap">
 
+    <?php if ( ! empty( $_GET['added'] ) ) : ?>
+        <div class="notice notice-success is-dismissible"><p>
+            <?php esc_html_e( 'Licence ajoutée avec succès.', 'licenceflow' ); ?>
+        </p></div>
+    <?php endif; ?>
+
     <h1 class="wp-heading-inline"><?php esc_html_e( 'Licences', 'licenceflow' ); ?></h1>
     <a href="<?php echo esc_url( LicenceFlow_Admin::add_license_url() ); ?>" class="page-title-action">
         <?php esc_html_e( 'Ajouter une licence', 'licenceflow' ); ?>

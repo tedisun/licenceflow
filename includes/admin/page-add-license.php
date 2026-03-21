@@ -35,7 +35,7 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
 
         $id = LicenceFlow_License_DB::insert( $data );
         if ( $id ) {
-            wp_redirect( LicenceFlow_Admin::edit_license_url( $id ) . '&added=1' );
+            wp_redirect( LicenceFlow_Admin::licenses_url( array( 'added' => 1 ) ) );
             exit;
         }
         $notice = array( 'type' => 'error', 'msg' => __( 'Erreur lors de l\'enregistrement.', 'licenceflow' ) );

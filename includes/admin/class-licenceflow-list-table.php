@@ -30,6 +30,8 @@ class LicenceFlow_List_Table extends WP_List_Table {
             'cb'              => '<input type="checkbox" id="lflow-select-all">',
             'license_id'      => __( 'ID', 'licenceflow' ),
             'product'         => __( 'Produit', 'licenceflow' ),
+            'license_key_col' => __( 'Clé / Valeur', 'licenceflow' ),
+            'stock_col'       => __( 'Dispo.', 'licenceflow' ),
             'license_type'    => __( 'Type', 'licenceflow' ),
             'license_status'  => __( 'Statut', 'licenceflow' ),
             'owner'           => __( 'Client', 'licenceflow' ),
@@ -117,6 +119,54 @@ class LicenceFlow_List_Table extends WP_List_Table {
             }
         }
         return $name;
+    }
+
+    protected function column_license_key_col( $item ): string {
+        $type = $item['license_type'] ?? 'key';
+        $raw  = $item['license_key'] ?? '';
+
+        // For non-key types the stored value is JSON; extract the main field
+        if ( $type !== 'key' ) {
+            $parsed = lflow_parse_license_value( $raw, $type );
+            if ( $type === 'account' ) {
+                $display = ( $parsed['username'] ?? '' ) . ' / ' . ( $parsed['password'] ?? '' );
+            } elseif ( $type === 'link' ) {
+                $display = $parsed['url'] ?? $raw;
+            } elseif ( $type === 'code' ) {
+                $display = $parsed['code'] ?? $raw;
+            } else {
+                $display = $raw;
+            }
+        } else {
+            $display = $raw;
+        }
+
+        if ( $display === '' ) {
+            return '<span style="color:#646970">—</span>';
+        }
+
+        $short = mb_strlen( $display ) > 40 ? mb_substr( $display, 0, 38 ) . '…' : $display;
+        $esc   = esc_attr( $display );
+
+        return sprintf(
+            '<code style="font-size:.8em; word-break:break-all;" title="%s">%s</code> ' .
+            '<button type="button" class="button button-small lflow-copy-key" data-key="%s" title="%s" style="padding:0 5px;">⧉</button>',
+            $esc,
+            esc_html( $short ),
+            $esc,
+            esc_attr__( 'Copier', 'licenceflow' )
+        );
+    }
+
+    protected function column_stock_col( $item ): string {
+        static $cache = array();
+        $ckey = (int) $item['product_id'] . '_' . (int) $item['variation_id'];
+        if ( ! isset( $cache[ $ckey ] ) ) {
+            $cache[ $ckey ] = LicenceFlow_License_DB::count_available( (int) $item['product_id'], (int) $item['variation_id'] );
+        }
+        $available = $cache[ $ckey ];
+        $color     = $available === 0 ? 'color:#d63638;' : ( $available <= 3 ? 'color:#dba617;' : '' );
+        return '<span style="font-weight:600;' . $color . '">' . absint( $available ) . '</span>';
     }
 
     protected function column_license_type( $item ): string {

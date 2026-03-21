@@ -16,9 +16,9 @@ class LicenceFlow_Core {
     private static $instance = null;
 
     private function __construct() {
-        // Delivery hooks
-        add_action( 'woocommerce_order_status_completed',  array( $this, 'maybe_deliver_on_completed' ), 10, 1 );
-        add_action( 'woocommerce_order_status_processing', array( $this, 'maybe_deliver_on_processing' ), 10, 1 );
+        // Delivery hooks — priority 1 ensures delivery runs BEFORE WooCommerce sends emails (priority 10)
+        add_action( 'woocommerce_order_status_completed',  array( $this, 'maybe_deliver_on_completed' ), 1, 1 );
+        add_action( 'woocommerce_order_status_processing', array( $this, 'maybe_deliver_on_processing' ), 1, 1 );
 
         // Admin bar notification
         add_action( 'admin_bar_menu', array( $this, 'admin_bar_node' ), 100 );

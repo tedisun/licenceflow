@@ -156,13 +156,18 @@ class LicenceFlow_Product_Metabox {
                     'orderby'    => 'license_id',
                     'order'      => 'DESC',
                 ) );
+                $lic_type  = LicenceFlow_Product_Config::get_license_type( $product_id, 0 );
                 ?>
-                <p>
-                    <strong><?php echo absint( $available ); ?></strong>
+                <p style="margin-bottom:8px;">
+                    <strong id="lflow-quick-available-count"><?php echo absint( $available ); ?></strong>
                     <?php esc_html_e( 'licence(s) disponible(s)', 'licenceflow' ); ?>
                     &mdash;
+                    <a href="#" id="lflow-quick-add-toggle" style="font-weight:600;">
+                        + <?php esc_html_e( 'Ajout rapide', 'licenceflow' ); ?>
+                    </a>
+                    &nbsp;|&nbsp;
                     <a href="<?php echo esc_url( LicenceFlow_Admin::add_license_url() . '&product_id=' . $product_id ); ?>">
-                        + <?php esc_html_e( 'Ajouter', 'licenceflow' ); ?>
+                        <?php esc_html_e( 'Formulaire complet', 'licenceflow' ); ?>
                     </a>
                     &nbsp;|&nbsp;
                     <a href="<?php echo esc_url( LicenceFlow_Admin::licenses_url( array( 'product_id' => $product_id ) ) ); ?>">
@@ -170,29 +175,53 @@ class LicenceFlow_Product_Metabox {
                     </a>
                 </p>
 
+                <!-- Quick-add inline form -->
+                <div id="lflow-quick-add-form" style="display:none; background:#f9f9f9; border:1px solid #ddd; border-radius:4px; padding:10px 12px; margin-bottom:10px;">
+                    <form>
+                        <input type="hidden" name="product_id" value="<?php echo absint( $product_id ); ?>">
+                        <input type="hidden" name="license_type" value="<?php echo esc_attr( $lic_type ); ?>">
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <?php if ( $lic_type === 'key' || $lic_type === 'code' ) : ?>
+                                <input type="text" name="license_value[key]" placeholder="<?php esc_attr_e( 'Clé / Code', 'licenceflow' ); ?>" style="flex:1; min-width:200px; font-family:monospace;">
+                            <?php elseif ( $lic_type === 'account' ) : ?>
+                                <input type="text" name="license_value[key]" placeholder="identifiant:motdepasse" style="flex:1; min-width:200px; font-family:monospace;">
+                            <?php else : ?>
+                                <input type="text" name="license_value[key]" placeholder="https://…" style="flex:1; min-width:200px; font-family:monospace;">
+                            <?php endif; ?>
+                            <button type="submit" class="button button-primary lflow-quick-add-submit">+ <?php esc_html_e( 'Ajouter', 'licenceflow' ); ?></button>
+                        </div>
+                        <p class="description" style="margin-top:4px; font-size:.8em;">
+                            <?php esc_html_e( 'Appuyez sur Entrée ou cliquez Ajouter pour enchaîner les saisies sans quitter la page.', 'licenceflow' ); ?>
+                        </p>
+                    </form>
+                </div>
+
                 <?php if ( ! empty( $recent['items'] ) ) : ?>
                 <table class="widefat" style="font-size:.82rem;">
                     <thead>
                         <tr>
                             <th>#</th>
                             <th><?php esc_html_e( 'Statut', 'licenceflow' ); ?></th>
+                            <th><?php esc_html_e( 'Clé / Valeur', 'licenceflow' ); ?></th>
                             <th><?php esc_html_e( 'Client', 'licenceflow' ); ?></th>
-                            <th><?php esc_html_e( 'Date vente', 'licenceflow' ); ?></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <?php foreach ( $recent['items'] as $row ) : ?>
+                    <tbody id="lflow-quick-licenses-tbody">
+                        <?php foreach ( $recent['items'] as $row ) :
+                            $k = $row['license_key'] ?? '';
+                            $short_k = mb_strlen( $k ) > 28 ? mb_substr( $k, 0, 26 ) . '…' : $k;
+                        ?>
                         <tr>
                             <td><a href="<?php echo esc_url( LicenceFlow_Admin::edit_license_url( (int) $row['license_id'] ) ); ?>">#<?php echo absint( $row['license_id'] ); ?></a></td>
                             <td><span class="lflow-status-badge lflow-status-<?php echo esc_attr( $row['license_status'] ); ?>"><?php echo esc_html( lflow_license_statuses()[ $row['license_status'] ] ?? $row['license_status'] ); ?></span></td>
+                            <td><code style="font-size:.78em;"><?php echo esc_html( $short_k ); ?></code></td>
                             <td><?php echo esc_html( $row['owner_email_address'] ?: '—' ); ?></td>
-                            <td><?php echo esc_html( lflow_format_date( $row['sold_date'] ?? '' ) ); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
                 <?php else : ?>
-                    <p style="color:#646970;"><?php esc_html_e( 'Aucune licence pour ce produit.', 'licenceflow' ); ?></p>
+                    <p style="color:#646970;" id="lflow-quick-licenses-tbody"><?php esc_html_e( 'Aucune licence pour ce produit.', 'licenceflow' ); ?></p>
                 <?php endif; ?>
             </div><!-- /licenses -->
 

@@ -11,6 +11,8 @@
             this.bindMetaboxTabs();
             this.bindRegenerateApiKey();
             this.bindSyncStock();
+            this.bindCopyKey();
+            this.bindMetaboxQuickAdd();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -172,12 +174,94 @@
             });
         },
 
+        // ── Copy key ──────────────────────────────────────────────────────────
+
+        bindCopyKey: function () {
+            $(document).on('click', '.lflow-copy-key', function (e) {
+                e.preventDefault();
+                var text = $(this).data('key');
+                navigator.clipboard.writeText(text).then(function () {
+                    var $btn = $(e.currentTarget);
+                    $btn.text('✓');
+                    setTimeout(function () { $btn.text('⧉'); }, 1500);
+                }).catch(function () {
+                    // Fallback for older browsers
+                    var $tmp = $('<textarea>').val(text).appendTo('body').select();
+                    document.execCommand('copy');
+                    $tmp.remove();
+                    var $btn = $(e.currentTarget);
+                    $btn.text('✓');
+                    setTimeout(function () { $btn.text('⧉'); }, 1500);
+                });
+            });
+        },
+
+        // ── Metabox quick-add ─────────────────────────────────────────────────
+
+        bindMetaboxQuickAdd: function () {
+            // Toggle the quick-add form
+            $(document).on('click', '#lflow-quick-add-toggle', function (e) {
+                e.preventDefault();
+                $('#lflow-quick-add-form').slideToggle(200);
+            });
+
+            // Submit quick-add form
+            $(document).on('submit', '#lflow-quick-add-form form', function (e) {
+                e.preventDefault();
+                var $form   = $(this);
+                var $btn    = $form.find('.lflow-quick-add-submit');
+                var pid     = $form.find('[name="product_id"]').val();
+                var type    = $form.find('[name="license_type"]').val();
+                var rawVal  = $form.find('[name="license_value[key]"]').val();
+
+                if (!rawVal) { alert('Veuillez entrer la valeur de la licence.'); return; }
+
+                $btn.prop('disabled', true).text('Enregistrement…');
+
+                $.post(lflow_admin.ajax_url, {
+                    action:       'lflow_save_license',
+                    nonce:        lflow_admin.nonce,
+                    license_id:   0,
+                    product_id:   pid,
+                    variation_id: 0,
+                    license_type: type,
+                    'license_value[key]': rawVal,
+                    license_status: 'available',
+                    delivre_x_times: 1
+                }, function (response) {
+                    if (response.success) {
+                        // Append new row to the table
+                        var id = response.data.license_id;
+                        var $tbody = $('#lflow-quick-licenses-tbody');
+                        var shortKey = rawVal.length > 30 ? rawVal.substring(0, 28) + '…' : rawVal;
+                        $tbody.prepend(
+                            '<tr><td><a href="' + lflow_admin.edit_url + '&license_id=' + id + '">#' + id + '</a></td>' +
+                            '<td><span class="lflow-status-badge lflow-status-available">Disponible</span></td>' +
+                            '<td><code>' + $('<span>').text(shortKey).html() + '</code></td>' +
+                            '<td>—</td></tr>'
+                        );
+                        // Update available count
+                        var $count = $('#lflow-quick-available-count');
+                        $count.text(parseInt($count.text() || 0) + 1);
+                        // Reset field
+                        $form.find('[name="license_value[key]"]').val('').focus();
+                        $btn.prop('disabled', false).text('+ Ajouter');
+                        LFLOW.showNotice('Licence #' + id + ' ajoutée.', 'success');
+                    } else {
+                        alert(response.data.message || lflow_admin.i18n.error);
+                        $btn.prop('disabled', false).text('+ Ajouter');
+                    }
+                });
+            });
+        },
+
         // ── Utility ───────────────────────────────────────────────────────────
 
         showNotice: function (message, type) {
             var $n = $('#lflow-inline-notice');
             if (!$n.length) {
-                $n = $('<div id="lflow-inline-notice" class="lflow-notice-inline"></div>').appendTo('.lflow-wrap');
+                var $target = $('.lflow-wrap').length ? $('.lflow-wrap') : $('#lflow-product-metabox .inside');
+                $n = $('<div id="lflow-inline-notice" class="lflow-notice-inline"></div>').prependTo( $target.length ? $target : 'body' );
             }
             $n.removeClass('success error').addClass(type).text(message).show();
             setTimeout(function () { $n.fadeOut(); }, 4000);
