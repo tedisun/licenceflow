@@ -12,6 +12,7 @@
             this.bindRegenerateApiKey();
             this.bindSyncStock();
             this.bindCopyKey();
+            this.bindHelpToggles();
             this.bindMetaboxQuickAdd();
         },
 
@@ -197,6 +198,24 @@
         },
 
         // ── Metabox quick-add ─────────────────────────────────────────────────
+
+        // ── Help toggles ──────────────────────────────────────────────────────
+
+        bindHelpToggles: function () {
+            $(document).on('click', '.lflow-help-btn', function (e) {
+                e.preventDefault();
+                var $btn  = $(this);
+                var $text = $btn.next('.lflow-help-text');
+                var open  = $text.hasClass('visible');
+                // Close all other open helps
+                $('.lflow-help-text.visible').removeClass('visible');
+                $('.lflow-help-btn.active').removeClass('active');
+                if (!open) {
+                    $text.addClass('visible');
+                    $btn.addClass('active');
+                }
+            });
+        },
 
         bindMetaboxQuickAdd: function () {
             // Toggle the quick-add form

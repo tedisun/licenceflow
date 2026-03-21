@@ -38,6 +38,51 @@
     color: #1d2327;
 }
 
+/* ── Help tooltips ───────────────────────────────────────────────────────────── */
+
+.lflow-help-btn {
+    background: none;
+    border: 1px solid #2271b1;
+    border-radius: 50%;
+    color: #2271b1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75em;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+    margin-left: 5px;
+    padding: 0;
+    vertical-align: middle;
+    transition: background .15s, color .15s;
+}
+
+.lflow-help-btn:hover,
+.lflow-help-btn.active {
+    background: #2271b1;
+    color: #fff;
+}
+
+.lflow-help-text {
+    display: none;
+    background: #f0f6fc;
+    border-left: 3px solid #2271b1;
+    border-radius: 0 4px 4px 0;
+    color: #1d2327;
+    font-size: .83em;
+    line-height: 1.6;
+    margin: 5px 0 2px 22px;
+    padding: 7px 12px;
+    max-width: 500px;
+}
+
+.lflow-help-text.visible {
+    display: block;
+}
+
 /* ── Getting started ──────────────────────────────────────────────────────────── */
 
 .lflow-gs-hero {

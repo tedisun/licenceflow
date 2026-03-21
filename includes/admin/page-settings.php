@@ -55,21 +55,34 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
             <table class="form-table">
                 <tr>
                     <th><label for="lflow_nb_rows_by_page"><?php esc_html_e( 'Lignes par page', 'licenceflow' ); ?></label></th>
-                    <td><input type="number" id="lflow_nb_rows_by_page" name="lflow_nb_rows_by_page" value="<?php echo absint( LicenceFlow_Settings::get( 'lflow_nb_rows_by_page' ) ); ?>" min="5" max="200" style="width:80px;"></td>
+                    <td>
+                        <input type="number" id="lflow_nb_rows_by_page" name="lflow_nb_rows_by_page" value="<?php echo absint( LicenceFlow_Settings::get( 'lflow_nb_rows_by_page' ) ); ?>" min="5" max="200" style="width:80px;">
+                        <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
+                        <span class="lflow-help-text"><?php esc_html_e( 'Nombre de licences affichées par page dans la liste principale. Augmenter cette valeur peut ralentir le chargement si vous avez beaucoup de licences.', 'licenceflow' ); ?></span>
+                    </td>
                 </tr>
                 <tr>
                     <th><label for="lflow_meta_key_name"><?php esc_html_e( 'Label singulier', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="text" id="lflow_meta_key_name" name="lflow_meta_key_name" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_meta_key_name' ) ); ?>" style="width:200px;">
-                        <p class="description"><?php esc_html_e( 'Utilisé dans les emails et l\'interface client. Ex : Licence, Clé, Accès.', 'licenceflow' ); ?></p>
+                        <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
+                        <span class="lflow-help-text"><?php esc_html_e( 'Mot utilisé au singulier dans les emails et l\'espace client pour désigner ce que vous livrez. Exemples : "Licence", "Clé", "Accès", "Code".', 'licenceflow' ); ?></span>
                     </td>
                 </tr>
                 <tr>
                     <th><label for="lflow_meta_key_name_plural"><?php esc_html_e( 'Label pluriel', 'licenceflow' ); ?></label></th>
-                    <td><input type="text" id="lflow_meta_key_name_plural" name="lflow_meta_key_name_plural" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_meta_key_name_plural' ) ); ?>" style="width:200px;"></td>
+                    <td>
+                        <input type="text" id="lflow_meta_key_name_plural" name="lflow_meta_key_name_plural" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_meta_key_name_plural' ) ); ?>" style="width:200px;">
+                        <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
+                        <span class="lflow-help-text"><?php esc_html_e( 'Version plurielle du label. Exemples : "Licences", "Clés", "Accès", "Codes". Utilisé quand un client reçoit plusieurs éléments.', 'licenceflow' ); ?></span>
+                    </td>
                 </tr>
                 <tr>
-                    <th><label><?php esc_html_e( 'Ordre de livraison', 'licenceflow' ); ?></label></th>
+                    <th>
+                        <?php esc_html_e( 'Ordre de livraison', 'licenceflow' ); ?>
+                        <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
+                        <span class="lflow-help-text"><?php esc_html_e( 'FIFO (recommandé) : la première licence ajoutée est la première livrée. Idéal pour écouler les licences dans l\'ordre d\'ajout. LIFO : la dernière licence ajoutée est livrée en premier. Utile si vous ajoutez des lots et voulez utiliser les plus récents d\'abord.', 'licenceflow' ); ?></span>
+                    </th>
                     <td>
                         <select name="lflow_key_delivery">
                             <option value="fifo" <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'fifo' ); ?>><?php esc_html_e( 'FIFO (premier entré, premier sorti)', 'licenceflow' ); ?></option>
@@ -82,19 +95,44 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                     <td>
                         <?php
                         $toggles = array(
-                            'lflow_guest_customer'         => __( 'Autoriser les clients invités (sans compte)', 'licenceflow' ),
-                            'lflow_different_keys'         => __( 'Livrer des licences différentes pour chaque unité commandée', 'licenceflow' ),
-                            'lflow_hide_keys_on_site'      => __( 'Masquer les licences sur le site (email uniquement)', 'licenceflow' ),
-                            'lflow_enable_cart_validation' => __( 'Bloquer la commande si stock de licences insuffisant', 'licenceflow' ),
-                            'lflow_stock_sync'             => __( 'Synchroniser le stock WooCommerce avec le nombre de licences disponibles', 'licenceflow' ),
-                            'lflow_show_on_top'            => __( 'Afficher les licences avant le tableau de commande (emails)', 'licenceflow' ),
-                            'lflow_show_adminbar_notifs'   => __( 'Afficher les alertes dans la barre d\'administration', 'licenceflow' ),
+                            'lflow_guest_customer' => array(
+                                'label' => __( 'Autoriser les clients invités (sans compte)', 'licenceflow' ),
+                                'help'  => __( 'Si activé, un client qui achète sans créer de compte peut quand même recevoir ses licences par email. Si désactivé, seuls les clients connectés voient leurs licences dans leur espace client.', 'licenceflow' ),
+                            ),
+                            'lflow_different_keys' => array(
+                                'label' => __( 'Livrer des licences différentes pour chaque unité commandée', 'licenceflow' ),
+                                'help'  => __( 'Si un client commande 3 unités, il recevra 3 licences distinctes. Si cette option est désactivée, la même licence sera envoyée pour chaque unité — déconseillé sauf cas très spécifiques.', 'licenceflow' ),
+                            ),
+                            'lflow_hide_keys_on_site' => array(
+                                'label' => __( 'Masquer les licences sur le site (email uniquement)', 'licenceflow' ),
+                                'help'  => __( 'Les licences n\'apparaîtront ni sur la page "Merci pour votre commande" ni dans l\'historique des commandes du compte client. Elles seront uniquement envoyées par email. Utile si vous ne voulez pas que les licences soient visibles en ligne.', 'licenceflow' ),
+                            ),
+                            'lflow_enable_cart_validation' => array(
+                                'label' => __( 'Bloquer la commande si stock de licences insuffisant', 'licenceflow' ),
+                                'help'  => __( 'Si activé, WooCommerce refusera le passage en caisse si le nombre de licences disponibles est inférieur à la quantité commandée. Recommandé pour éviter de vendre des produits que vous ne pouvez pas livrer.', 'licenceflow' ),
+                            ),
+                            'lflow_stock_sync' => array(
+                                'label' => __( 'Synchroniser le stock WooCommerce avec le nombre de licences disponibles', 'licenceflow' ),
+                                'help'  => __( 'Si activé, la quantité en stock WooCommerce de chaque produit est automatiquement mise à jour à chaque livraison de licence. WooCommerce affichera "rupture de stock" quand il n\'y a plus de licences disponibles, et empêchera les achats. Cette option active automatiquement la gestion de stock WooCommerce sur le produit.', 'licenceflow' ),
+                            ),
+                            'lflow_show_on_top' => array(
+                                'label' => __( 'Afficher les licences avant le tableau de commande (emails)', 'licenceflow' ),
+                                'help'  => __( 'Par défaut, le bloc de licences apparaît après le récapitulatif de commande dans l\'email. Activez cette option si vous préférez que vos clients voient leurs licences en premier, sans avoir à faire défiler.', 'licenceflow' ),
+                            ),
+                            'lflow_show_adminbar_notifs' => array(
+                                'label' => __( 'Afficher les alertes dans la barre d\'administration', 'licenceflow' ),
+                                'help'  => __( 'Affiche une pastille rouge dans la barre d\'administration WordPress quand le stock d\'un produit licencié est bas (moins de 5 licences disponibles). Pratique pour être alerté sans aller dans LicenceFlow.', 'licenceflow' ),
+                            ),
                         );
-                        foreach ( $toggles as $key => $label ) : ?>
-                        <label style="display:block; margin-bottom:6px;">
-                            <input type="checkbox" name="<?php echo esc_attr( $key ); ?>" value="on" <?php checked( LicenceFlow_Settings::get( $key ), 'on' ); ?>>
-                            <?php echo esc_html( $label ); ?>
-                        </label>
+                        foreach ( $toggles as $key => $data ) : ?>
+                        <div style="margin-bottom:6px;">
+                            <label>
+                                <input type="checkbox" name="<?php echo esc_attr( $key ); ?>" value="on" <?php checked( LicenceFlow_Settings::get( $key ), 'on' ); ?>>
+                                <?php echo esc_html( $data['label'] ); ?>
+                            </label>
+                            <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
+                            <span class="lflow-help-text"><?php echo esc_html( $data['help'] ); ?></span>
+                        </div>
                         <?php endforeach; ?>
                     </td>
                 </tr>
