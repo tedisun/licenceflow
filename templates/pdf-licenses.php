@@ -18,73 +18,77 @@ $label_singular = LicenceFlow_Settings::get( 'lflow_meta_key_name', __( 'Licence
 $label_plural   = LicenceFlow_Settings::get( 'lflow_meta_key_name_plural', __( 'Licences', 'licenceflow' ) );
 $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
 ?>
-<table style="width:100%; border-collapse:collapse; margin-top:20px; font-family:Arial,sans-serif; font-size:12px;">
+<div style="margin-top:24px; font-family:Arial,sans-serif; font-size:12px;">
 
-    <!-- Section heading row -->
-    <tr>
-        <td colspan="2" style="padding:6px 0 4px; font-weight:bold; font-size:13px; border-bottom:1px solid #000;">
-            <?php echo esc_html( $heading ); ?>
-        </td>
-    </tr>
+    <p style="font-weight:bold; font-size:13px; border-bottom:1px solid #000; padding-bottom:4px; margin-bottom:12px;">
+        <?php echo esc_html( $heading ); ?>
+    </p>
 
-    <!-- Column headers -->
-    <tr style="background:#1d2327; color:#ffffff;">
-        <th style="padding:5px 8px; text-align:left; width:35%;"><?php esc_html_e( 'Produit', 'licenceflow' ); ?></th>
-        <th style="padding:5px 8px; text-align:left;"><?php echo esc_html( $heading ); ?></th>
-    </tr>
-
-    <!-- License rows -->
-    <?php
-    $row_bg = false;
-    foreach ( $licenses as $license ) :
-        $row_bg = ! $row_bg;
+    <?php foreach ( $licenses as $license ) :
         $type   = $license['license_type'] ?? 'key';
         $parsed = $license['parsed_value']  ?? array();
-
-        // Build the key display string based on type
-        switch ( $type ) {
-            case 'account':
-                $key_display = ( $parsed['username'] ?? '' ) . ' / ' . ( $parsed['password'] ?? '' );
-                break;
-            case 'link':
-                $key_display = $parsed['url'] ?? '';
-                break;
-            case 'code':
-                $key_display = $parsed['code'] ?? '';
-                if ( ! empty( $parsed['note'] ) ) {
-                    $key_display .= ' (' . $parsed['note'] . ')';
-                }
-                break;
-            default: // key
-                $key_display = $parsed['key'] ?? '';
-        }
+        $expiry = $license['customer_expiry'] ?? '';
 
         // Product name
         $product = wc_get_product( $license['product_id'] ?? 0 );
         $pname   = $product ? $product->get_name() : '#' . ( $license['product_id'] ?? '?' );
-
-        // Customer expiry line
-        $expiry = $license['customer_expiry'] ?? '';
     ?>
-    <tr style="background:<?php echo $row_bg ? '#f9f9f9' : '#ffffff'; ?>;">
-        <td style="padding:5px 8px; border-bottom:1px solid #e0e0e0; vertical-align:top;">
+    <div style="border:1px solid #ddd; border-radius:4px; padding:10px 12px; margin-bottom:10px; background:#f9f9f9;">
+
+        <p style="margin:0 0 6px; font-weight:bold; color:#1d2327;">
             <?php echo esc_html( $pname ); ?>
-        </td>
-        <td style="padding:5px 8px; border-bottom:1px solid #e0e0e0; font-family:monospace; word-break:break-all;">
-            <?php echo esc_html( $key_display ); ?>
-            <?php if ( $expiry ) : ?>
-                <br><span style="font-family:Arial,sans-serif; font-size:10px; color:#555;">
-                    <?php
-                    printf(
-                        /* translators: %s: expiry date */
-                        esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ),
-                        esc_html( $expiry )
-                    );
-                    ?>
-                </span>
+        </p>
+
+        <?php if ( $type === 'key' ) : ?>
+            <p style="margin:0; font-family:monospace; font-size:13px; background:#fff; border:1px solid #ccc; padding:5px 8px; letter-spacing:.05em;">
+                <?php echo esc_html( $parsed['key'] ?? '' ); ?>
+            </p>
+
+        <?php elseif ( $type === 'account' ) : ?>
+            <table style="border:0; padding:0; font-size:12px;">
+                <tr>
+                    <td style="padding:2px 10px 2px 0; color:#555;"><?php esc_html_e( 'Identifiant', 'licenceflow' ); ?> :</td>
+                    <td style="font-family:monospace;"><?php echo esc_html( $parsed['username'] ?? '' ); ?></td>
+                </tr>
+                <tr>
+                    <td style="padding:2px 10px 0 0; color:#555;"><?php esc_html_e( 'Mot de passe', 'licenceflow' ); ?> :</td>
+                    <td style="font-family:monospace;"><?php echo esc_html( $parsed['password'] ?? '' ); ?></td>
+                </tr>
+            </table>
+
+        <?php elseif ( $type === 'link' ) : ?>
+            <p style="margin:0; font-size:12px;">
+                <span style="color:#555;"><?php esc_html_e( 'Lien', 'licenceflow' ); ?> : </span>
+                <?php echo esc_html( $parsed['url'] ?? '' ); ?>
+                <?php if ( ! empty( $parsed['label'] ) ) : ?>
+                    <span style="color:#555;"> (<?php echo esc_html( $parsed['label'] ); ?>)</span>
+                <?php endif; ?>
+            </p>
+
+        <?php elseif ( $type === 'code' ) : ?>
+            <p style="margin:0; font-family:monospace; font-size:13px; background:#fff; border:1px solid #ccc; padding:5px 8px;">
+                <?php echo esc_html( $parsed['code'] ?? '' ); ?>
+            </p>
+            <?php if ( ! empty( $parsed['note'] ) ) : ?>
+                <p style="margin:4px 0 0; font-size:11px; color:#555; font-style:italic;">
+                    <?php echo esc_html( $parsed['note'] ); ?>
+                </p>
             <?php endif; ?>
-        </td>
-    </tr>
+        <?php endif; ?>
+
+        <?php if ( $expiry ) : ?>
+            <p style="margin:6px 0 0; font-size:11px; color:#555;">
+                <?php
+                printf(
+                    /* translators: %s: expiry date */
+                    esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ),
+                    esc_html( $expiry )
+                );
+                ?>
+            </p>
+        <?php endif; ?>
+
+    </div>
     <?php endforeach; ?>
 
-</table>
+</div>
