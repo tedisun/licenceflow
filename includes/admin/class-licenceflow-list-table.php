@@ -52,17 +52,8 @@ class LicenceFlow_List_Table extends WP_List_Table {
     }
 
     protected function get_bulk_actions(): array {
-        $actions = array(
-            'delete' => __( 'Supprimer', 'licenceflow' ),
-        );
-        foreach ( lflow_license_statuses() as $slug => $label ) {
-            $actions[ $slug ] = sprintf(
-                /* translators: %s: status label */
-                __( 'Marquer : %s', 'licenceflow' ),
-                $label
-            );
-        }
-        return $actions;
+        // Bulk actions are handled by our custom toolbar in page-licenses.php
+        return array();
     }
 
     // ── Data ──────────────────────────────────────────────────────────────────
@@ -72,14 +63,15 @@ class LicenceFlow_List_Table extends WP_List_Table {
         $page     = $this->get_pagenum();
 
         $args = array(
-            'status'      => sanitize_key( $_GET['license_status'] ?? '' ),
-            'product_id'  => absint( $_GET['product_id'] ?? 0 ),
-            'type'        => sanitize_key( $_GET['license_type'] ?? '' ),
-            'search'      => sanitize_text_field( $_GET['s'] ?? '' ),
-            'page'        => $page,
-            'per_page'    => $per_page,
-            'orderby'     => sanitize_key( $_GET['orderby'] ?? 'license_id' ),
-            'order'       => strtoupper( sanitize_key( $_GET['order'] ?? 'DESC' ) ),
+            'status'       => sanitize_key( $_GET['license_status'] ?? '' ),
+            'product_id'   => absint( $_GET['product_id'] ?? 0 ),
+            'variation_id' => absint( $_GET['variation_id'] ?? 0 ) > 0 ? absint( $_GET['variation_id'] ) : -1,
+            'type'         => sanitize_key( $_GET['license_type'] ?? '' ),
+            'search'       => sanitize_text_field( $_GET['s'] ?? '' ),
+            'page'         => $page,
+            'per_page'     => $per_page,
+            'orderby'      => sanitize_key( $_GET['orderby'] ?? 'license_id' ),
+            'order'        => strtoupper( sanitize_key( $_GET['order'] ?? 'DESC' ) ),
         );
 
         $result = LicenceFlow_License_DB::get_list( $args );
@@ -159,14 +151,19 @@ class LicenceFlow_List_Table extends WP_List_Table {
     }
 
     protected function column_stock_col( $item ): string {
-        static $cache = array();
+        static $avail_cache = array();
+        static $total_cache = array();
         $ckey = (int) $item['product_id'] . '_' . (int) $item['variation_id'];
-        if ( ! isset( $cache[ $ckey ] ) ) {
-            $cache[ $ckey ] = LicenceFlow_License_DB::count_available( (int) $item['product_id'], (int) $item['variation_id'] );
+        if ( ! isset( $avail_cache[ $ckey ] ) ) {
+            $avail_cache[ $ckey ] = LicenceFlow_License_DB::count_available( (int) $item['product_id'], (int) $item['variation_id'] );
+            $total_cache[ $ckey ] = LicenceFlow_License_DB::count_total( (int) $item['product_id'], (int) $item['variation_id'] );
         }
-        $available = $cache[ $ckey ];
+        $available = $avail_cache[ $ckey ];
+        $total     = $total_cache[ $ckey ];
         $color     = $available === 0 ? 'color:#d63638;' : ( $available <= 3 ? 'color:#dba617;' : '' );
-        return '<span style="font-weight:600;' . $color . '">' . absint( $available ) . '</span>';
+        return '<span style="font-weight:600;' . $color . '" title="' . esc_attr__( 'Disponibles / Total', 'licenceflow' ) . '">'
+            . absint( $available ) . '/' . absint( $total )
+            . '</span>';
     }
 
     protected function column_license_type( $item ): string {
@@ -282,26 +279,10 @@ class LicenceFlow_List_Table extends WP_List_Table {
         return $views;
     }
 
-    // ── Extra filters ─────────────────────────────────────────────────────────
+    // ── Extra filters — handled by custom filter bar in page-licenses.php ────
 
     protected function extra_tablenav( $which ): void {
-        if ( $which !== 'top' ) return;
-
-        $types    = lflow_license_types();
-        $cur_type = sanitize_key( $_GET['license_type'] ?? '' );
-        ?>
-        <div class="alignleft actions">
-            <select name="license_type" id="lflow-filter-type">
-                <option value=""><?php esc_html_e( '— Type —', 'licenceflow' ); ?></option>
-                <?php foreach ( $types as $slug => $label ) : ?>
-                    <option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $cur_type, $slug ); ?>>
-                        <?php echo esc_html( $label ); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <?php submit_button( __( 'Filtrer', 'licenceflow' ), 'secondary', 'filter_action', false ); ?>
-        </div>
-        <?php
+        // Intentionally empty: filters are rendered above the table in page-licenses.php
     }
 
     public function no_items(): void {

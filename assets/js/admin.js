@@ -14,6 +14,7 @@
             this.bindCopyKey();
             this.bindHelpToggles();
             this.bindMetaboxQuickAdd();
+            this.bindFilterVariations();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -90,23 +91,30 @@
         // ── Settings tabs ─────────────────────────────────────────────────────
 
         bindSettingsTabs: function () {
-            var $tabs = $('.lflow-settings-tabs a');
-            if (!$tabs.length) return;
+            var $nav = $('.lflow-settings-tabs');
+            if (!$nav.length) return;
+
+            var $tabs = $nav.find('a');
+
+            // Switch to a tab pane without page reload
+            function activateTab(slug) {
+                $tabs.removeClass('active');
+                $tabs.filter('[data-tab="' + slug + '"]').addClass('active');
+                $('.lflow-settings-tab-pane').hide();
+                $('#lflow-tab-' + slug).show();
+                // Keep the URL in sync so a save redirects back to the right tab
+                var href = $tabs.filter('[data-tab="' + slug + '"]').attr('href');
+                if (href) { history.replaceState(null, '', href); }
+            }
 
             $tabs.on('click', function (e) {
                 e.preventDefault();
-                var tab = $(this).data('tab');
-                $tabs.removeClass('active');
-                $(this).addClass('active');
-                $('.lflow-settings-tab-pane').hide();
-                $('#lflow-tab-' + tab).show();
-                // Update URL hash without scroll
-                history.replaceState(null, '', $(this).attr('href'));
+                activateTab($(this).data('tab'));
             });
 
-            // Activate from hash or first tab
-            var hash = window.location.hash.replace('#', '') || $tabs.first().data('tab');
-            $tabs.filter('[data-tab="' + hash + '"]').trigger('click');
+            // Activate the tab matching the current ?tab= URL param
+            var activeTab = $nav.data('active-tab') || $tabs.first().data('tab');
+            activateTab(activeTab);
         },
 
         // ── Metabox tabs ──────────────────────────────────────────────────────
@@ -269,6 +277,39 @@
                     } else {
                         alert(response.data.message || lflow_admin.i18n.error);
                         $btn.prop('disabled', false).text('+ Ajouter');
+                    }
+                });
+            });
+        },
+
+        // ── Filter: dynamic variations ────────────────────────────────────
+
+        bindFilterVariations: function () {
+            var $product = $('#lflow-filter-product');
+            if (!$product.length) return;
+
+            $product.on('change', function () {
+                var pid = $(this).val();
+                var $variation = $('#lflow-filter-variation');
+                $variation.find('option:not(:first)').remove();
+
+                if (!pid || pid === '0') {
+                    $variation.prop('disabled', true);
+                    return;
+                }
+
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_get_variations',
+                    nonce: lflow_admin.nonce,
+                    product_id: pid
+                }, function (response) {
+                    if (response.success && response.data.variations && response.data.variations.length) {
+                        response.data.variations.forEach(function (v) {
+                            $variation.append('<option value="' + v.id + '">' + v.label + '</option>');
+                        });
+                        $variation.prop('disabled', false);
+                    } else {
+                        $variation.prop('disabled', true);
                     }
                 });
             });

@@ -29,7 +29,8 @@ class LicenceFlow_Core {
         add_action( 'woocommerce_order_details_after_order_table',     array( $this, 'inject_order_history_licenses' ), 10, 1 );
 
         // WooCommerce PDF Invoices & Packing Slips integration
-        add_action( 'wpo_wcpdf_after_totals', array( $this, 'inject_pdf_licenses' ), 10, 2 );
+        // wpo_wcpdf_after_order_details fires after the items list (same hook FS-License-Manager uses)
+        add_action( 'wpo_wcpdf_after_order_details', array( $this, 'inject_pdf_licenses' ), 10, 2 );
 
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );

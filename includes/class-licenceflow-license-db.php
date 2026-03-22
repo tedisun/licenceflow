@@ -503,6 +503,29 @@ class LicenceFlow_License_DB {
         );
     }
 
+    /**
+     * Count total licenses (all statuses) for a specific product/variation.
+     */
+    public static function count_total( int $product_id, int $variation_id = 0 ): int {
+        global $wpdb;
+
+        if ( $variation_id > 0 ) {
+            return (int) $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT COUNT(*) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d AND variation_id = %d",
+                    $product_id, $variation_id
+                )
+            );
+        }
+
+        return (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d",
+                $product_id
+            )
+        );
+    }
+
     // ── License meta ──────────────────────────────────────────────────────────
 
     /**

@@ -7,8 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$security   = LicenceFlow_Security::get_instance();
-$notice     = array();
+$security = LicenceFlow_Security::get_instance();
+$notice   = array();
 
 // ── Handle Export ──────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ if ( isset( $_POST['lflow_export_nonce'] ) ) {
             'type'       => sanitize_key( $_POST['export_type'] ?? '' ),
             'per_page'   => 5000,
         );
-        $result  = LicenceFlow_License_DB::get_list( $export_args );
+        $result   = LicenceFlow_License_DB::get_list( $export_args );
         $licenses = $result['items'];
 
         header( 'Content-Type: text/csv; charset=utf-8' );
@@ -62,7 +62,101 @@ if ( isset( $_POST['lflow_export_nonce'] ) ) {
     }
 }
 
-// ── Handle Import ──────────────────────────────────────────────────────────────
+// ── Handle TXT Import ──────────────────────────────────────────────────────────
+
+if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
+    if ( ! $security->verify_nonce( sanitize_text_field( wp_unslash( $_POST['lflow_txt_import_nonce'] ) ), 'txt_import_licenses' ) ) {
+        $notice = array( 'type' => 'error', 'msg' => __( 'Nonce invalide.', 'licenceflow' ) );
+    } elseif ( empty( $_FILES['import_txt']['tmp_name'] ) ) {
+        $notice = array( 'type' => 'error', 'msg' => __( 'Veuillez sélectionner un fichier .txt.', 'licenceflow' ) );
+    } else {
+        $txt_product_id   = absint( $_POST['txt_product_id'] ?? 0 );
+        $txt_variation_id = absint( $_POST['txt_variation_id'] ?? 0 );
+        $txt_type         = sanitize_key( $_POST['txt_license_type'] ?? 'key' );
+        $txt_delivre      = max( 1, absint( $_POST['txt_delivre_x_times'] ?? 1 ) );
+        $txt_status       = sanitize_key( $_POST['txt_license_status'] ?? 'available' );
+        $txt_valid        = absint( $_POST['txt_valid'] ?? 0 );
+        $txt_expiry       = sanitize_text_field( $_POST['txt_expiration_date'] ?? '' );
+        $txt_notes        = sanitize_textarea_field( $_POST['txt_admin_notes'] ?? '' );
+
+        $valid_types    = array_keys( lflow_license_types() );
+        $valid_statuses = array_keys( lflow_license_statuses() );
+
+        if ( ! in_array( $txt_type, $valid_types, true ) ) { $txt_type = 'key'; }
+        if ( ! in_array( $txt_status, $valid_statuses, true ) ) { $txt_status = 'available'; }
+
+        $content = file_get_contents( $_FILES['import_txt']['tmp_name'] );
+        $lines   = preg_split( '/\r?\n/', $content );
+
+        $imported = 0;
+        $skipped  = 0;
+        $errors   = 0;
+
+        foreach ( $lines as $line ) {
+            $line = trim( $line );
+            if ( $line === '' ) { $skipped++; continue; }
+
+            // Serialize based on type
+            if ( $txt_type === 'key' ) {
+                $serialized = sanitize_textarea_field( $line );
+            } else {
+                // For other types, expect pipe-separated values on each line
+                $parts = explode( '|', $line );
+                $keys_by_type = array(
+                    'account' => array( 'username', 'password' ),
+                    'link'    => array( 'url', 'label' ),
+                    'code'    => array( 'code', 'note' ),
+                );
+                $field_keys = $keys_by_type[ $txt_type ] ?? array();
+                $arr = array();
+                foreach ( $field_keys as $i => $k ) {
+                    $arr[ $k ] = sanitize_text_field( $parts[ $i ] ?? '' );
+                }
+                $serialized = lflow_serialize_license_value( $arr, $txt_type );
+            }
+
+            if ( $serialized === '' ) { $errors++; continue; }
+
+            $data = array(
+                'product_id'              => $txt_product_id,
+                'variation_id'            => $txt_variation_id,
+                'license_key'             => $serialized,
+                'license_type'            => $txt_type,
+                'license_status'          => $txt_status,
+                'delivre_x_times'         => $txt_delivre,
+                'remaining_delivre_x_times' => $txt_delivre,
+                'valid'                   => $txt_valid,
+                'admin_notes'             => $txt_notes,
+            );
+            if ( $txt_expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $txt_expiry ) ) {
+                $data['expiration_date'] = $txt_expiry;
+            }
+
+            $id = LicenceFlow_License_DB::insert( $data );
+            if ( $id ) {
+                $imported++;
+            } else {
+                $errors++;
+            }
+        }
+
+        // Sync stock if applicable
+        if ( $imported > 0 && LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+            LicenceFlow_Core::get_instance()->sync_product_stock( $txt_product_id, $txt_variation_id );
+        }
+
+        $notice = array(
+            'type' => $errors ? 'warning' : 'updated',
+            'msg'  => sprintf(
+                /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
+                __( 'Import TXT terminé : %1$d importée(s), %2$d ligne(s) vide(s) ignorée(s), %3$d erreur(s).', 'licenceflow' ),
+                $imported, $skipped, $errors
+            ),
+        );
+    }
+}
+
+// ── Handle CSV Import ──────────────────────────────────────────────────────────
 
 if ( isset( $_POST['lflow_import_nonce'] ) ) {
     if ( ! $security->verify_nonce( sanitize_text_field( wp_unslash( $_POST['lflow_import_nonce'] ) ), 'import_licenses' ) ) {
@@ -88,8 +182,6 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                 $line++;
                 if ( $line === 1 ) continue; // Skip header
 
-                // Expected columns: license_type, license_value, [expiration_date], [valid], [admin_notes]
-                // Product ID comes from the import form field
                 $type   = sanitize_key( $row[0] ?? 'key' );
                 $value  = $row[1] ?? '';
                 $expiry = sanitize_text_field( $row[2] ?? '' );
@@ -101,7 +193,6 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                     continue;
                 }
 
-                // For non-key types, assume pipe-delimited value
                 if ( $type !== 'key' ) {
                     $parts   = explode( '|', $value );
                     $keys_by_type = array(
@@ -143,7 +234,7 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                 'type' => 'updated',
                 'msg'  => sprintf(
                     /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
-                    __( 'Import terminé : %1$d importée(s), %2$d ignorée(s), %3$d erreur(s).', 'licenceflow' ),
+                    __( 'Import CSV terminé : %1$d importée(s), %2$d ignorée(s), %3$d erreur(s).', 'licenceflow' ),
                     $imported, $skipped, $errors
                 ),
             );
@@ -166,7 +257,96 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
 
     <div class="lflow-ie-grid">
 
-        <!-- Export -->
+        <!-- ── Import TXT (recommended) ── -->
+        <div class="lflow-card">
+            <h2><?php esc_html_e( 'Importer des licences (TXT — recommandé)', 'licenceflow' ); ?></h2>
+            <p class="description" style="margin-bottom:12px;">
+                <?php esc_html_e( 'Méthode la plus simple : un fichier texte brut avec une licence par ligne. Pas de mise en forme, pas d\'en-tête. Tous les paramètres sont définis dans le formulaire ci-dessous et s\'appliquent à chaque ligne du fichier.', 'licenceflow' ); ?><br>
+                <?php esc_html_e( 'Pour les types "Compte", "Lien" ou "Code", séparez les champs par | (ex. : identifiant|motdepasse).', 'licenceflow' ); ?>
+            </p>
+            <form method="post" enctype="multipart/form-data">
+                <?php wp_nonce_field( 'txt_import_licenses', 'lflow_txt_import_nonce' ); ?>
+
+                <table class="form-table">
+                    <tr>
+                        <th><label><?php esc_html_e( 'Fichier .txt', 'licenceflow' ); ?></label></th>
+                        <td><input type="file" name="import_txt" accept=".txt,text/plain"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_product_id"><?php esc_html_e( 'Produit', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <select id="txt_product_id" name="txt_product_id" required>
+                                <option value="0"><?php esc_html_e( '— Sélectionner un produit —', 'licenceflow' ); ?></option>
+                                <?php foreach ( $licensed_products as $pid => $pname ) : ?>
+                                    <option value="<?php echo esc_attr( $pid ); ?>"><?php echo esc_html( $pname ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_variation_id"><?php esc_html_e( 'Variation', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <select id="txt_variation_id" name="txt_variation_id" disabled>
+                                <option value="0"><?php esc_html_e( '— Aucune variation —', 'licenceflow' ); ?></option>
+                            </select>
+                            <p class="description"><?php esc_html_e( 'Chargé automatiquement après sélection du produit.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_license_type"><?php esc_html_e( 'Type de licence', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <select id="txt_license_type" name="txt_license_type">
+                                <?php foreach ( lflow_license_types() as $slug => $label ) : ?>
+                                    <option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $label ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>
+                            <label for="txt_delivre_x_times"><?php esc_html_e( 'Livrable X fois', 'licenceflow' ); ?></label>
+                            <button type="button" class="lflow-help-btn">?</button>
+                            <span class="lflow-help-text"><?php esc_html_e( 'Nombre de fois que chaque licence de ce fichier peut être livrée à des clients différents. 1 = usage unique (standard). 5 = la même licence peut être commandée et livrée jusqu\'à 5 fois.', 'licenceflow' ); ?></span>
+                        </th>
+                        <td><input type="number" id="txt_delivre_x_times" name="txt_delivre_x_times" value="1" min="1" style="width:80px;"></td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_license_status"><?php esc_html_e( 'Statut initial', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <select id="txt_license_status" name="txt_license_status">
+                                <?php foreach ( lflow_license_statuses() as $slug => $label ) : ?>
+                                    <option value="<?php echo esc_attr( $slug ); ?>" <?php selected( $slug, 'available' ); ?>><?php echo esc_html( $label ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_expiration_date"><?php esc_html_e( 'Date d\'expiration admin', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <input type="date" id="txt_expiration_date" name="txt_expiration_date" placeholder="YYYY-MM-DD">
+                            <p class="description"><?php esc_html_e( 'Optionnel. Date à laquelle le lot de licences expire pour vous (renouvellement fournisseur). Laissez vide si pas d\'expiration.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_valid"><?php esc_html_e( 'Validité client (jours)', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <input type="number" id="txt_valid" name="txt_valid" value="0" min="0" style="width:80px;">
+                            <p class="description"><?php esc_html_e( '0 = pas de limite. Sinon, le client verra "Valide jusqu\'au [date d\'achat + N jours]".', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><label for="txt_admin_notes"><?php esc_html_e( 'Notes internes', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <textarea id="txt_admin_notes" name="txt_admin_notes" rows="2" style="width:300px;" placeholder="<?php esc_attr_e( 'Ex. : Lot acheté le 22/03/2026 chez le fournisseur X', 'licenceflow' ); ?>"></textarea>
+                        </td>
+                    </tr>
+                </table>
+
+                <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Importer le fichier TXT', 'licenceflow' ); ?></button></p>
+            </form>
+        </div>
+
+        <!-- ── Export ── -->
         <div class="lflow-card">
             <h2><?php esc_html_e( 'Exporter les licences (CSV)', 'licenceflow' ); ?></h2>
             <form method="post">
@@ -213,9 +393,12 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
             </form>
         </div>
 
-        <!-- Import -->
+        <!-- ── Import CSV (advanced) ── -->
         <div class="lflow-card">
-            <h2><?php esc_html_e( 'Importer des licences (CSV)', 'licenceflow' ); ?></h2>
+            <h2><?php esc_html_e( 'Importer des licences (CSV — avancé)', 'licenceflow' ); ?></h2>
+            <p class="description" style="margin-bottom:12px;">
+                <?php esc_html_e( 'Pour importer des licences avec des paramètres différents par ligne. Format sans en-tête.', 'licenceflow' ); ?>
+            </p>
             <form method="post" enctype="multipart/form-data">
                 <?php wp_nonce_field( 'lflow_import_licenses', 'lflow_import_nonce' ); ?>
 
@@ -238,13 +421,34 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                 </table>
 
                 <p class="description">
-                    <?php esc_html_e( 'Format CSV (sans en-tête) : license_type | license_value | expiration_date (Y-m-d) | valid (jours) | admin_notes.', 'licenceflow' ); ?><br>
-                    <?php esc_html_e( 'Pour le type "account" : username|password. Pour "link" : url|label. Pour "code" : code|note.', 'licenceflow' ); ?>
+                    <?php esc_html_e( 'Colonnes (sans en-tête) : license_type | license_value | expiration_date (Y-m-d) | valid (jours) | admin_notes.', 'licenceflow' ); ?><br>
+                    <?php esc_html_e( 'Pour "account" : username|password. Pour "link" : url|label. Pour "code" : code|note.', 'licenceflow' ); ?>
                 </p>
-                <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Importer', 'licenceflow' ); ?></button></p>
+                <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Importer le CSV', 'licenceflow' ); ?></button></p>
             </form>
         </div>
 
     </div>
 
 </div>
+<?php
+// Add JS to handle variation loading in the TXT import form
+?>
+<script>
+(function($){
+    $('#txt_product_id').on('change', function(){
+        var pid = $(this).val();
+        var $var = $('#txt_variation_id');
+        $var.find('option:not(:first)').remove();
+        if (!pid || pid === '0') { $var.prop('disabled', true); return; }
+        $.post(lflow_admin.ajax_url, {
+            action: 'lflow_get_variations', nonce: lflow_admin.nonce, product_id: pid
+        }, function(r){
+            if (r.success && r.data.variations && r.data.variations.length) {
+                r.data.variations.forEach(function(v){ $var.append('<option value="'+v.id+'">'+v.label+'</option>'); });
+                $var.prop('disabled', false);
+            } else { $var.prop('disabled', true); }
+        });
+    });
+}(jQuery));
+</script>

@@ -2,6 +2,8 @@
 /**
  * LicenceFlow — Settings page (tabbed)
  *
+ * All tab panes are rendered at once and toggled by JS — no page reload on tab switch.
+ *
  * @package LicenceFlow
  */
 
@@ -36,8 +38,8 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
     <h1><?php esc_html_e( 'Réglages LicenceFlow', 'licenceflow' ); ?></h1>
 
-    <!-- Tabs -->
-    <nav class="lflow-settings-tabs">
+    <!-- Tabs nav -->
+    <nav class="lflow-settings-tabs" data-active-tab="<?php echo esc_attr( $current_tab ); ?>">
         <?php foreach ( $tabs as $slug => $label ) : ?>
             <a href="<?php echo esc_url( add_query_arg( 'tab', $slug, $base_url ) ); ?>"
                data-tab="<?php echo esc_attr( $slug ); ?>"
@@ -47,9 +49,9 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
         <?php endforeach; ?>
     </nav>
 
-    <form method="post" action="options.php">
-
-        <?php if ( $current_tab === 'general' ) : ?>
+    <!-- ── Tab: Général ─────────────────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-general">
+        <form method="post" action="options.php">
             <?php settings_fields( 'lflow_settings_general' ); ?>
 
             <table class="form-table">
@@ -113,7 +115,7 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                             ),
                             'lflow_stock_sync' => array(
                                 'label' => __( 'Synchroniser le stock WooCommerce avec le nombre de licences disponibles', 'licenceflow' ),
-                                'help'  => __( 'Si activé, la quantité en stock WooCommerce de chaque produit est automatiquement mise à jour à chaque livraison de licence. WooCommerce affichera "rupture de stock" quand il n\'y a plus de licences disponibles, et empêchera les achats. Cette option active automatiquement la gestion de stock WooCommerce sur le produit.', 'licenceflow' ),
+                                'help'  => __( 'Si activé, la quantité en stock WooCommerce de chaque produit est automatiquement mise à jour à chaque livraison de licence. Fonctionne uniquement si "Suivre la quantité en stock" est déjà activé sur le produit WooCommerce.', 'licenceflow' ),
                             ),
                             'lflow_show_on_top' => array(
                                 'label' => __( 'Afficher les licences avant le tableau de commande (emails)', 'licenceflow' ),
@@ -171,8 +173,23 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 </tr>
             </table>
 
-        <?php elseif ( $current_tab === 'encryption' ) : ?>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+
+    <!-- ── Tab: Chiffrement ──────────────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-encryption">
+        <form method="post" action="options.php">
             <?php settings_fields( 'lflow_settings_encryption' ); ?>
+
+            <!-- Pourquoi changer les clés ? -->
+            <div style="background:#fff; border:1px solid #ddd; border-left:4px solid #2271b1; border-radius:3px; padding:16px 20px; margin:16px 0; max-width:700px;">
+                <h3 style="margin:0 0 10px; font-size:14px; color:#1d2327;"><?php esc_html_e( 'Pourquoi configurer les clés de chiffrement ?', 'licenceflow' ); ?></h3>
+                <p style="margin:0 0 10px;"><?php esc_html_e( 'Toutes vos licences (clés, identifiants, liens, codes) sont stockées chiffrées dans la base de données avec l\'algorithme AES-256-CBC. La clé de chiffrement et le vecteur d\'initialisation (IV) sont les "mots de passe" qui permettent de déchiffrer ces données.', 'licenceflow' ); ?></p>
+                <p style="margin:0 0 10px;"><strong><?php esc_html_e( 'Les valeurs par défaut sont publiques', 'licenceflow' ); ?></strong> — <?php esc_html_e( 'elles sont visibles dans le code source du plugin et ne protègent rien. Si vous conservez les valeurs par défaut, n\'importe qui ayant accès à votre base de données peut déchiffrer vos licences.', 'licenceflow' ); ?></p>
+                <p style="margin:0 0 10px; color:#d63638;"><strong>⚠️ <?php esc_html_e( 'Important :', 'licenceflow' ); ?></strong> <?php esc_html_e( 'Changer les clés après avoir ajouté des licences rendra les données existantes illisibles. Effectuez ce changement uniquement sur une installation neuve, ou après avoir exporté et réimporté toutes vos licences.', 'licenceflow' ); ?></p>
+                <p style="margin:0;"><strong>🔐 <?php esc_html_e( 'Conservez vos clés en sécurité', 'licenceflow' ); ?></strong> — <?php esc_html_e( 'notez-les dans un gestionnaire de mots de passe (Bitwarden, 1Password, etc.). Sans elles, vos licences deviennent illisibles. WooCommerce ne peut pas les récupérer si vous les perdez.', 'licenceflow' ); ?></p>
+            </div>
 
             <?php if ( LicenceFlow_Settings::has_default_encryption_keys() ) : ?>
             <div class="lflow-enc-warning">
@@ -181,28 +198,30 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
             </div>
             <?php endif; ?>
 
-            <div class="notice notice-warning inline">
-                <p><?php esc_html_e( '⚠️ Attention : changer les clés de chiffrement après avoir ajouté des licences rendra les données existantes illisibles. Effectuez cette modification uniquement sur une installation neuve ou après avoir exporté et réimporté vos données.', 'licenceflow' ); ?></p>
-            </div>
-
             <table class="form-table">
                 <tr>
                     <th><label for="lflow_enc_key"><?php esc_html_e( 'Clé de chiffrement (AES-256)', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="text" id="lflow_enc_key" name="lflow_enc_key" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_key' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;">
-                        <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'au moins 32 caractères.', 'licenceflow' ); ?></p>
+                        <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'au moins 32 caractères. Exemple : utilisez un générateur de mots de passe en choisissant 40 caractères alphanumériques.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
                 <tr>
                     <th><label for="lflow_enc_iv"><?php esc_html_e( 'Vecteur d\'initialisation (IV)', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="text" id="lflow_enc_iv" name="lflow_enc_iv" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_iv' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;">
-                        <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'au moins 16 caractères.', 'licenceflow' ); ?></p>
+                        <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'exactement 16 caractères (le chiffrement AES-CBC requiert 16 octets d\'IV).', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
             </table>
 
-        <?php elseif ( $current_tab === 'notifications' ) : ?>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+
+    <!-- ── Tab: Notifications ────────────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-notifications">
+        <form method="post" action="options.php">
             <?php settings_fields( 'lflow_settings_notifications' ); ?>
 
             <table class="form-table">
@@ -231,7 +250,13 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 </tr>
             </table>
 
-        <?php elseif ( $current_tab === 'order-status' ) : ?>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+
+    <!-- ── Tab: Statuts de commande ──────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-order-status">
+        <form method="post" action="options.php">
             <?php settings_fields( 'lflow_settings_order_status' ); ?>
 
             <table class="form-table">
@@ -251,10 +276,8 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 </tr>
             </table>
 
-        <?php endif; ?>
-
-        <?php submit_button(); ?>
-
-    </form>
+            <?php submit_button(); ?>
+        </form>
+    </div>
 
 </div>
