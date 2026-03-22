@@ -29,8 +29,9 @@ class LicenceFlow_Core {
         add_action( 'woocommerce_order_details_after_order_table',     array( $this, 'inject_order_history_licenses' ), 10, 1 );
 
         // WooCommerce PDF Invoices & Packing Slips integration
-        // wpo_wcpdf_after_order_details fires after the items list (same hook FS-License-Manager uses)
+        // Register on both hooks for version compatibility (deduplicated internally)
         add_action( 'wpo_wcpdf_after_order_details', array( $this, 'inject_pdf_licenses' ), 10, 2 );
+        add_action( 'wpo_wcpdf_after_totals',        array( $this, 'inject_pdf_licenses' ), 10, 2 );
 
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );
@@ -319,8 +320,9 @@ class LicenceFlow_Core {
      * @param object $document       WPO_WCPDF_Document instance
      */
     public function inject_pdf_licenses( $document_type, $document ): void {
-        // Only inject on invoices, not packing slips
-        if ( $document_type !== 'invoice' ) return;
+        // Skip packing slips — only inject on invoice-type documents
+        // Accept 'invoice' and any type that isn't explicitly a packing slip
+        if ( in_array( $document_type, array( 'packing-slip', 'credit-note' ), true ) ) return;
 
         // Retrieve the WC_Order from the document object (API varies by plugin version)
         if ( method_exists( $document, 'get_order' ) ) {
@@ -333,8 +335,16 @@ class LicenceFlow_Core {
 
         if ( ! $order instanceof WC_Order ) return;
 
+        $order_id = $order->get_id();
+
+        // Deduplication: both hooks may fire for the same document — only output once per order
+        static $rendered = array();
+        $dedup_key = $document_type . '_' . $order_id;
+        if ( isset( $rendered[ $dedup_key ] ) ) return;
+        $rendered[ $dedup_key ] = true;
+
         // Fresh fetch to avoid stale cache
-        $order = wc_get_order( $order->get_id() );
+        $order = wc_get_order( $order_id );
         if ( ! $order ) return;
 
         $licenses = $this->get_licenses_for_display( $order, 'email' );

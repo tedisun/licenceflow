@@ -58,8 +58,22 @@ if ( $cur_product > 0 ) {
         <!-- Status view tabs -->
         <?php $table->views(); ?>
 
+        <!-- ── Bulk actions ── -->
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <select id="lflow-bulk-action" name="bulk_action">
+                <option value=""><?php esc_html_e( '— Action groupée —', 'licenceflow' ); ?></option>
+                <option value="delete"><?php esc_html_e( 'Supprimer', 'licenceflow' ); ?></option>
+                <?php foreach ( lflow_license_statuses() as $slug => $label ) : ?>
+                    <option value="<?php echo esc_attr( $slug ); ?>">
+                        <?php printf( esc_html__( 'Marquer : %s', 'licenceflow' ), esc_html( $label ) ); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button id="lflow-bulk-apply" class="button action"><?php esc_html_e( 'Appliquer', 'licenceflow' ); ?></button>
+        </div>
+
         <!-- ── Filter bar ── -->
-        <div class="lflow-filter-bar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin:12px 0; padding:12px 14px; background:#fff; border:1px solid #ddd; border-radius:4px;">
+        <div class="lflow-filter-bar" style="display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin:12px 0 0; padding:12px 14px; background:#fff; border:1px solid #ddd; border-radius:4px;">
 
             <!-- Free text search: client, email, order# -->
             <div>
@@ -142,20 +156,6 @@ if ( $cur_product > 0 ) {
                 <?php endif; ?>
             </div>
 
-        </div>
-
-        <!-- ── Bulk actions ── -->
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-            <select id="lflow-bulk-action" name="bulk_action">
-                <option value=""><?php esc_html_e( '— Action groupée —', 'licenceflow' ); ?></option>
-                <option value="delete"><?php esc_html_e( 'Supprimer', 'licenceflow' ); ?></option>
-                <?php foreach ( lflow_license_statuses() as $slug => $label ) : ?>
-                    <option value="<?php echo esc_attr( $slug ); ?>">
-                        <?php printf( esc_html__( 'Marquer : %s', 'licenceflow' ), esc_html( $label ) ); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button id="lflow-bulk-apply" class="button action"><?php esc_html_e( 'Appliquer', 'licenceflow' ); ?></button>
         </div>
 
         <?php $table->display(); ?>

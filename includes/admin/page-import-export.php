@@ -265,7 +265,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                 <?php esc_html_e( 'Pour les types "Compte", "Lien" ou "Code", séparez les champs par | (ex. : identifiant|motdepasse).', 'licenceflow' ); ?>
             </p>
             <form method="post" enctype="multipart/form-data">
-                <?php wp_nonce_field( 'txt_import_licenses', 'lflow_txt_import_nonce' ); ?>
+                <?php wp_nonce_field( 'lflow_txt_import_licenses', 'lflow_txt_import_nonce' ); ?>
 
                 <table class="form-table">
                     <tr>
