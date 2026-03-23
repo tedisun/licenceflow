@@ -390,3 +390,221 @@ function lflow_render_license_card( array $license, string $context = 'website' 
 
     echo '</div>';
 }
+
+// ─── Grouped license display ──────────────────────────────────────────────────
+
+/**
+ * Group a flat $licenses array (from get_licenses_for_display) by product + variation.
+ *
+ * Returns an array of groups. Each group contains:
+ *  - product_id, variation_id, license_type
+ *  - items         : all license rows for this group
+ *  - common_expiry : the shared customer_expiry if identical across all items, else null
+ *  - common_times  : the shared "times" value if identical, else null
+ *  - common_note   : the shared license_note if identical, else null
+ *
+ * @param array $licenses  Flat license array from get_licenses_for_display()
+ * @return array
+ */
+function lflow_group_licenses_for_display( array $licenses ): array {
+    $groups = array();
+
+    foreach ( $licenses as $license ) {
+        $key = (int) ( $license['product_id'] ?? 0 ) . '_' . (int) ( $license['variation_id'] ?? 0 );
+        if ( ! isset( $groups[ $key ] ) ) {
+            $groups[ $key ] = array(
+                'product_id'   => (int) ( $license['product_id'] ?? 0 ),
+                'variation_id' => (int) ( $license['variation_id'] ?? 0 ),
+                'license_type' => $license['license_type'] ?? 'key',
+                'items'        => array(),
+            );
+        }
+        $groups[ $key ]['items'][] = $license;
+    }
+
+    // Compute common fields for each group
+    foreach ( $groups as &$group ) {
+        $items = $group['items'];
+
+        $expiries = array_unique( array_map( function ( $i ) { return $i['customer_expiry'] ?? ''; }, $items ) );
+        $group['common_expiry'] = count( $expiries ) === 1 ? reset( $expiries ) : null;
+
+        $times = array_unique( array_map( function ( $i ) { return (int) ( $i['times'] ?? 1 ); }, $items ) );
+        $group['common_times'] = count( $times ) === 1 ? reset( $times ) : null;
+
+        $notes = array_unique( array_map( function ( $i ) { return trim( $i['license_note'] ?? '' ); }, $items ) );
+        $group['common_note'] = count( $notes ) === 1 ? reset( $notes ) : null;
+    }
+    unset( $group );
+
+    return array_values( $groups );
+}
+
+/**
+ * Render a grouped license card for the customer.
+ * Handles both single-item and multi-item groups.
+ * Multi-item groups show the product name once, then list all keys,
+ * with common metadata (expiry, times, note) shown once at the bottom.
+ *
+ * @param array  $group    Group structure from lflow_group_licenses_for_display()
+ * @param string $context  'email' or 'website'
+ */
+function lflow_render_license_group( array $group, string $context = 'website' ): void {
+    $items        = $group['items'];
+    $type         = $group['license_type'];
+    $product_id   = $group['product_id'];
+    $variation_id = $group['variation_id'];
+    $is_email     = $context === 'email';
+    $count        = count( $items );
+
+    // Single item: delegate to the existing single-card renderer
+    if ( $count === 1 ) {
+        lflow_render_license_card( $items[0], $context );
+        return;
+    }
+
+    // ── Resolve product/variation names ──────────────────────────────────────
+
+    $product_name   = '';
+    $variation_name = '';
+    if ( $product_id ) {
+        $product = wc_get_product( $product_id );
+        if ( $product ) {
+            $product_name = $product->get_name();
+        }
+    }
+    if ( $variation_id > 0 ) {
+        $variation = wc_get_product( $variation_id );
+        if ( $variation && $variation->is_type( 'variation' ) ) {
+            $variation_name = wc_get_formatted_variation( $variation, true, false );
+        }
+    }
+
+    $card_style = $is_email
+        ? 'border:1px solid #e0e0e0; border-radius:6px; padding:16px; margin-bottom:16px; background:#f9f9f9;'
+        : '';
+    $card_class = 'lflow-license-card lflow-license-card--' . esc_attr( $type ) . ' lflow-license-card--group';
+
+    echo '<div class="' . $card_class . '" style="' . esc_attr( $card_style ) . '">';
+
+    // ── Header ───────────────────────────────────────────────────────────────
+
+    if ( $product_name ) {
+        echo '<p style="margin:0 0 ' . ( $variation_name ? '2px' : '10px' ) . '; font-weight:600; color:#1d2327;">'
+            . esc_html( $product_name ) . '</p>';
+    }
+    if ( $variation_name ) {
+        echo '<p style="margin:0 0 10px; font-size:.85em; color:#646970;">' . esc_html( $variation_name ) . '</p>';
+    }
+
+    // ── Items ─────────────────────────────────────────────────────────────────
+
+    foreach ( $items as $index => $license ) {
+        $value  = $license['parsed_value'] ?? '';
+        $expiry = $license['customer_expiry'] ?? '';
+        $times  = (int) ( $license['times'] ?? 1 );
+        $note   = trim( $license['license_note'] ?? '' );
+
+        // Only show per-item metadata when it differs across the group
+        $show_per_expiry = ( $group['common_expiry'] === null ) && $expiry;
+        $show_per_times  = ( $group['common_times']  === null ) && $times > 1;
+        $show_per_note   = ( $group['common_note']   === null ) && $note;
+
+        // Separator between items
+        if ( $index > 0 ) {
+            echo '<div style="border-top:1px solid #e0e0e0; margin:10px 0;"></div>';
+        }
+
+        switch ( $type ) {
+
+            case 'account':
+                $username = is_array( $value ) ? ( $value['username'] ?? '' ) : '';
+                $password = is_array( $value ) ? ( $value['password'] ?? '' ) : '';
+                echo '<table style="border-collapse:collapse; font-size:.9em;">';
+                echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Identifiant', 'licenceflow' ) . '</td>';
+                echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $username ) . '</code></td></tr>';
+                echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Mot de passe', 'licenceflow' ) . '</td>';
+                if ( $is_email ) {
+                    echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></td></tr>';
+                } else {
+                    $uid = 'lflow-pass-' . absint( $license['license_id'] ?? rand() );
+                    echo '<td>';
+                    echo '<span id="' . esc_attr( $uid ) . '-val" style="display:none;"><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></span>';
+                    echo '<span id="' . esc_attr( $uid ) . '-mask">••••••••</span>';
+                    echo ' <button type="button" onclick="(function(b){document.getElementById(\'' . esc_js( $uid ) . '-val\').style.display=\'inline\';document.getElementById(\'' . esc_js( $uid ) . '-mask\').style.display=\'none\';b.style.display=\'none\';})(this);" style="font-size:.8em; padding:1px 6px; cursor:pointer;">'
+                        . esc_html__( 'Afficher', 'licenceflow' ) . '</button>';
+                    echo '</td></tr>';
+                }
+                echo '</table>';
+                break;
+
+            case 'link':
+                $url   = is_array( $value ) ? ( $value['url'] ?? '' ) : '';
+                $label = is_array( $value ) ? ( $value['label'] ?? __( 'Cliquez pour activer', 'licenceflow' ) ) : __( 'Cliquez pour activer', 'licenceflow' );
+                if ( $url ) {
+                    echo '<a href="' . esc_url( $url ) . '" style="display:inline-block; padding:8px 16px; background:#2271b1; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">'
+                        . esc_html( $label ) . '</a>';
+                    echo '<br><small style="color:#646970; font-size:.8em;">' . esc_html( $url ) . '</small>';
+                }
+                break;
+
+            case 'code':
+                $code      = is_array( $value ) ? ( $value['code'] ?? '' ) : '';
+                $code_note = is_array( $value ) ? ( $value['note'] ?? '' ) : '';
+                echo '<code style="font-size:1.1em; background:#f0f0f1; padding:6px 10px; border-radius:4px; letter-spacing:.05em;">'
+                    . esc_html( $code ) . '</code>';
+                if ( $code_note ) {
+                    echo '<p style="margin:6px 0 0; font-size:.85em; color:#646970;">' . esc_html( $code_note ) . '</p>';
+                }
+                break;
+
+            case 'key':
+            default:
+                $key_str = is_string( $value ) ? $value : '';
+                echo '<code style="font-size:1.05em; background:#f0f0f1; padding:6px 10px; border-radius:4px; word-break:break-all;">'
+                    . esc_html( $key_str ) . '</code>';
+                if ( ! $is_email ) {
+                    echo ' <button type="button" onclick="navigator.clipboard.writeText(\'' . esc_js( $key_str ) . '\').then(function(){this.textContent=\'' . esc_js( __( 'Copié !', 'licenceflow' ) ) . '\';}.bind(this));" style="font-size:.8em; padding:2px 8px; cursor:pointer; margin-left:4px;">'
+                        . esc_html__( 'Copier', 'licenceflow' ) . '</button>';
+                }
+                break;
+        }
+
+        // Per-item metadata (only when values differ across the group)
+        if ( $show_per_note ) {
+            echo '<p style="margin:6px 0 0; font-size:.9em; color:#3c434a;">' . nl2br( esc_html( $note ) ) . '</p>';
+        }
+        if ( $show_per_times ) {
+            echo '<p style="margin:4px 0 0; font-size:.85em; color:#646970;">';
+            printf( esc_html__( 'Utilisable %d fois', 'licenceflow' ), $times );
+            echo '</p>';
+        }
+        if ( $show_per_expiry ) {
+            echo '<p style="margin:4px 0 0; font-size:.85em; color:#646970;">';
+            printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), '<strong>' . esc_html( $expiry ) . '</strong>' );
+            echo '</p>';
+        }
+    }
+
+    // ── Common metadata (shown once at the bottom) ────────────────────────────
+
+    $common_note   = $group['common_note'];
+    $common_times  = $group['common_times'];
+    $common_expiry = $group['common_expiry'];
+
+    if ( $common_note ) {
+        echo '<p style="margin:12px 0 0; font-size:.9em; color:#3c434a;">' . nl2br( esc_html( $common_note ) ) . '</p>';
+    }
+    if ( $common_times !== null && $common_times > 1 ) {
+        echo '<p style="margin:10px 0 0; font-size:.85em; color:#646970;">';
+        printf( esc_html__( 'Utilisable %d fois', 'licenceflow' ), $common_times );
+        echo '</p>';
+    }
+    if ( $common_expiry ) {
+        echo '<p style="margin:' . ( $common_times !== null && $common_times > 1 ? '4px' : '10px' ) . ' 0 0; font-size:.85em; color:#646970;">';
+        printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), '<strong>' . esc_html( $common_expiry ) . '</strong>' );
+        echo '</p>';
+    }
+
+    echo '</div>';
+}

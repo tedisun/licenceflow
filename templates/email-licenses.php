@@ -25,8 +25,8 @@ $label_plural  = LicenceFlow_Settings::get( 'lflow_meta_key_name_plural', __( 'L
         <?php endif; ?>
     </h2>
 
-    <?php foreach ( $licenses as $license ) :
-        lflow_render_license_card( $license, 'email' );
+    <?php foreach ( lflow_group_licenses_for_display( $licenses ) as $group ) :
+        lflow_render_license_group( $group, 'email' );
     endforeach; ?>
 
 </div>
