@@ -282,7 +282,23 @@ class LicenceFlow_Admin {
         $type        = sanitize_key( $_POST['license_type'] ?? 'key' );
 
         // Sanitize the license field value (type-aware)
-        $raw_value   = $_POST['license_value'] ?? '';
+        $raw_value = $_POST['license_value'] ?? '';
+
+        // Parse || note syntax for single-value types: KEY || note visible client
+        $inline_note = '';
+        if ( in_array( $type, array( 'key', 'code' ), true ) ) {
+            $raw_text = is_array( $raw_value ) ? (string) ( $raw_value['key'] ?? '' ) : (string) $raw_value;
+            if ( strpos( $raw_text, '||' ) !== false ) {
+                $parts = explode( '||', $raw_text, 2 );
+                if ( is_array( $raw_value ) ) {
+                    $raw_value['key'] = trim( $parts[0] );
+                } else {
+                    $raw_value = trim( $parts[0] );
+                }
+                $inline_note = trim( $parts[1] );
+            }
+        }
+
         $clean_value = $security->sanitize_license_field( $raw_value, $type );
         $serialized  = lflow_serialize_license_value( $clean_value, $type );
 
@@ -295,7 +311,7 @@ class LicenceFlow_Admin {
             'license_status'  => sanitize_key( $_POST['license_status'] ?? 'available' ),
             'expiration_date' => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
             'valid'           => $security->sanitize_int( $_POST['valid'] ?? 0 ),
-            'license_note'    => sanitize_textarea_field( $_POST['license_note'] ?? '' ),
+            'license_note'    => sanitize_textarea_field( ! empty( $_POST['license_note'] ) ? $_POST['license_note'] : $inline_note ),
             'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times' => $delivre_x_times,
         );

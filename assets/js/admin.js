@@ -229,7 +229,32 @@
             // Toggle the quick-add form
             $(document).on('click', '#lflow-quick-add-toggle', function (e) {
                 e.preventDefault();
-                $('#lflow-quick-add-form').slideToggle(200);
+                $('#lflow-quick-add-form').slideToggle(200, function () {
+                    if ($('#lflow-quick-add-form').is(':visible')) {
+                        $('#lflow-qa-value').focus();
+                    }
+                });
+            });
+
+            // When variation changes: update license type + default_valid
+            $(document).on('change', '#lflow-qa-variation', function () {
+                var pid = $('#lflow-quick-add-form [name="product_id"]').val();
+                var vid = $(this).val() || 0;
+                if (!pid) return;
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_get_variations',
+                    nonce: lflow_admin.nonce,
+                    product_id: pid,
+                    variation_id: vid
+                }, function (response) {
+                    if (!response.success) return;
+                    if (response.data.license_type) {
+                        $('#lflow-qa-type').val(response.data.license_type);
+                    }
+                    if (typeof response.data.default_valid !== 'undefined') {
+                        $('#lflow-qa-valid').val(response.data.default_valid);
+                    }
+                });
             });
 
             // Submit quick-add form
@@ -238,45 +263,57 @@
                 var $form   = $(this);
                 var $btn    = $form.find('.lflow-quick-add-submit');
                 var pid     = $form.find('[name="product_id"]').val();
-                var type    = $form.find('[name="license_type"]').val();
-                var rawVal  = $form.find('[name="license_value[key]"]').val();
+                var type    = $form.find('#lflow-qa-type').val() || 'key';
+                var rawVal  = $.trim($form.find('[name="license_value[key]"]').val());
+                var varId   = $form.find('[name="variation_id"]').val() || 0;
+                var delivre = parseInt($form.find('[name="delivre_x_times"]').val()) || 1;
+                var valid   = parseInt($form.find('[name="valid"]').val()) || 0;
 
-                if (!rawVal) { alert('Veuillez entrer la valeur de la licence.'); return; }
+                if (!rawVal) {
+                    $form.find('[name="license_value[key]"]').focus();
+                    return;
+                }
 
-                $btn.prop('disabled', true).text('Enregistrement…');
+                // Parse || for display only (server handles the actual split)
+                var displayVal = rawVal.indexOf('||') !== -1 ? $.trim(rawVal.split('||')[0]) : rawVal;
+                var shortKey   = displayVal.length > 30 ? displayVal.substring(0, 28) + '…' : displayVal;
+
+                $btn.prop('disabled', true).text('…');
 
                 $.post(lflow_admin.ajax_url, {
-                    action:       'lflow_save_license',
-                    nonce:        lflow_admin.nonce,
-                    license_id:   0,
-                    product_id:   pid,
-                    variation_id: 0,
-                    license_type: type,
+                    action:              'lflow_save_license',
+                    nonce:               lflow_admin.nonce,
+                    license_id:          0,
+                    product_id:          pid,
+                    variation_id:        varId,
+                    license_type:        type,
                     'license_value[key]': rawVal,
-                    license_status: 'available',
-                    delivre_x_times: 1
+                    license_status:      'available',
+                    delivre_x_times:     delivre,
+                    valid:               valid
                 }, function (response) {
+                    $btn.prop('disabled', false).text('+ Ajouter');
                     if (response.success) {
-                        // Append new row to the table
-                        var id = response.data.license_id;
+                        var id     = response.data.license_id;
                         var $tbody = $('#lflow-quick-licenses-tbody');
-                        var shortKey = rawVal.length > 30 ? rawVal.substring(0, 28) + '…' : rawVal;
+                        // Remove "no licenses" placeholder row if present
+                        $tbody.find('#lflow-no-licenses-row').remove();
                         $tbody.prepend(
-                            '<tr><td><a href="' + lflow_admin.edit_url + '&license_id=' + id + '">#' + id + '</a></td>' +
+                            '<tr>' +
+                            '<td><a href="' + lflow_admin.edit_url + '&license_id=' + id + '">#' + id + '</a></td>' +
                             '<td><span class="lflow-status-badge lflow-status-available">Disponible</span></td>' +
                             '<td><code>' + $('<span>').text(shortKey).html() + '</code></td>' +
-                            '<td>—</td></tr>'
+                            '<td>—</td>' +
+                            '</tr>'
                         );
-                        // Update available count
+                        // Increment available count
                         var $count = $('#lflow-quick-available-count');
                         $count.text(parseInt($count.text() || 0) + 1);
-                        // Reset field
+                        // Reset value field only, keep other fields for chaining
                         $form.find('[name="license_value[key]"]').val('').focus();
-                        $btn.prop('disabled', false).text('+ Ajouter');
                         LFLOW.showNotice('Licence #' + id + ' ajoutée.', 'success');
                     } else {
                         alert(response.data.message || lflow_admin.i18n.error);
-                        $btn.prop('disabled', false).text('+ Ajouter');
                     }
                 });
             });

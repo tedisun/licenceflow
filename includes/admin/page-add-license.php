@@ -15,8 +15,24 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
     if ( ! $security->verify_nonce( sanitize_text_field( wp_unslash( $_POST['lflow_save_license_nonce'] ) ), 'save_license' ) ) {
         $notice = array( 'type' => 'error', 'msg' => __( 'Nonce invalide.', 'licenceflow' ) );
     } else {
-        $type        = sanitize_key( $_POST['license_type'] ?? 'key' );
-        $raw_value   = $_POST['license_value'] ?? '';
+        $type      = sanitize_key( $_POST['license_type'] ?? 'key' );
+        $raw_value = $_POST['license_value'] ?? '';
+
+        // Parse || note syntax for single-value types: KEY || note visible client
+        $inline_note = '';
+        if ( in_array( $type, array( 'key', 'code' ), true ) ) {
+            $raw_text = is_array( $raw_value ) ? (string) ( $raw_value['key'] ?? '' ) : (string) $raw_value;
+            if ( strpos( $raw_text, '||' ) !== false ) {
+                $parts = explode( '||', $raw_text, 2 );
+                if ( is_array( $raw_value ) ) {
+                    $raw_value['key'] = trim( $parts[0] );
+                } else {
+                    $raw_value = trim( $parts[0] );
+                }
+                $inline_note = trim( $parts[1] );
+            }
+        }
+
         $clean_value = $security->sanitize_license_field( $raw_value, $type );
         $serialized  = lflow_serialize_license_value( $clean_value, $type );
 
@@ -29,10 +45,10 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
             'license_status'            => sanitize_key( $_POST['license_status'] ?? 'available' ),
             'expiration_date'           => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
             'valid'                     => $security->sanitize_int( $_POST['valid'] ?? 0 ),
-            'license_note'              => sanitize_textarea_field( $_POST['license_note'] ?? '' ),
+            'license_note'              => sanitize_textarea_field( ! empty( $_POST['license_note'] ) ? $_POST['license_note'] : $inline_note ),
             'admin_notes'               => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times'           => $delivre_x_times,
-            'remaining_delivre_x_times' => $delivre_x_times, // initialize = delivre_x_times, not DB default
+            'remaining_delivre_x_times' => $delivre_x_times,
         );
         if ( $data['expiration_date'] === '' ) unset( $data['expiration_date'] );
 
@@ -108,7 +124,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                         <!-- key -->
                         <div class="lflow-license-field-group lflow-active" data-type="key" id="lflow-field-key">
                             <textarea name="license_value[key]" rows="3" style="width:100%; font-family:monospace;" placeholder="AAAA-BBBB-CCCC-DDDD"></textarea>
-                            <p class="lflow-field-hint"><?php esc_html_e( 'Clé de licence ou code texte.', 'licenceflow' ); ?></p>
+                            <p class="lflow-field-hint"><?php esc_html_e( 'Clé de licence ou code texte.', 'licenceflow' ); ?> <?php esc_html_e( 'Astuce : saisissez', 'licenceflow' ); ?> <code>valeur || note client</code> <?php esc_html_e( 'pour renseigner la note visible en même temps.', 'licenceflow' ); ?></p>
                         </div>
 
                         <!-- account -->
