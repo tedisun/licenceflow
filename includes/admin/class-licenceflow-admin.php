@@ -104,6 +104,15 @@ class LicenceFlow_Admin {
             'lflow-settings',
             array( $this, 'render_settings' )
         );
+
+        add_submenu_page(
+            'licenceflow',
+            __( 'Documentation API', 'licenceflow' ),
+            __( 'API', 'licenceflow' ),
+            'manage_woocommerce',
+            'lflow-api-docs',
+            array( $this, 'render_api_docs' )
+        );
     }
 
     // ── Assets ────────────────────────────────────────────────────────────────
@@ -117,6 +126,7 @@ class LicenceFlow_Admin {
             'licenceflow_page_lflow-statistics',
             'licenceflow_page_lflow-import-export',
             'licenceflow_page_lflow-settings',
+            'licenceflow_page_lflow-api-docs',
         );
 
         $on_product_page = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
@@ -228,6 +238,11 @@ class LicenceFlow_Admin {
     public function render_settings(): void {
         LicenceFlow_Security::get_instance()->require_capability();
         require LFLOW_PATH . 'includes/admin/page-settings.php';
+    }
+
+    public function render_api_docs(): void {
+        LicenceFlow_Security::get_instance()->require_capability();
+        require LFLOW_PATH . 'includes/admin/page-api-docs.php';
     }
 
     // ── AJAX: get variations ──────────────────────────────────────────────────
