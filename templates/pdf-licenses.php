@@ -25,10 +25,11 @@ $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
     </p>
 
     <?php foreach ( $licenses as $license ) :
-        $type   = $license['license_type'] ?? 'key';
-        $parsed = $license['parsed_value']  ?? array();
-        $expiry = $license['customer_expiry'] ?? '';
-        $times  = isset( $license['times'] ) ? (int) $license['times'] : 1;
+        $type         = $license['license_type'] ?? 'key';
+        $parsed       = $license['parsed_value']  ?? array();
+        $expiry       = $license['customer_expiry'] ?? '';
+        $times        = isset( $license['times'] ) ? (int) $license['times'] : 1;
+        $license_note = trim( $license['license_note'] ?? '' );
 
         // Product name + variation name
         $product        = wc_get_product( $license['product_id'] ?? 0 );
@@ -87,6 +88,12 @@ $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
                     <?php echo esc_html( $parsed['note'] ); ?>
                 </p>
             <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ( $license_note ) : ?>
+            <p style="margin:6px 0 0; font-size:11px; color:#3c434a;">
+                <?php echo nl2br( esc_html( $license_note ) ); ?>
+            </p>
         <?php endif; ?>
 
         <?php if ( $times > 1 ) : ?>

@@ -29,6 +29,7 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
             'license_status'            => sanitize_key( $_POST['license_status'] ?? 'available' ),
             'expiration_date'           => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
             'valid'                     => $security->sanitize_int( $_POST['valid'] ?? 0 ),
+            'license_note'              => sanitize_textarea_field( $_POST['license_note'] ?? '' ),
             'admin_notes'               => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times'           => $delivre_x_times,
             'remaining_delivre_x_times' => $delivre_x_times, // initialize = delivre_x_times, not DB default
@@ -192,6 +193,15 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <td>
                         <input type="number" id="lflow-valid" name="valid" value="0" min="0" style="width:80px;">
                         <p class="lflow-field-hint"><?php esc_html_e( 'Nombre de jours de validité à compter de la date d\'achat. Affiché au client comme "Valide jusqu\'au [date d\'achat + X jours]". Laisser 0 pour aucune limite.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- Customer note (license_note) -->
+                <tr>
+                    <th><label for="lflow-license-note"><?php esc_html_e( 'Note client', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <textarea id="lflow-license-note" name="license_note" rows="2" style="width:100%;" placeholder="<?php esc_attr_e( 'Ex : Code Antivirus et VPN (réf: I37)', 'licenceflow' ); ?>"></textarea>
+                        <p class="lflow-field-hint"><?php esc_html_e( 'Texte affiché sous la licence dans l\'email, la page de confirmation, l\'historique et le PDF. Visible par le client.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 

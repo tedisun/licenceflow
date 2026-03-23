@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.0.11
+ * Version:     1.1.0
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.0.11' );
+define( 'LFLOW_VERSION',   '1.1.0' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -139,6 +139,7 @@ function lflow_create_tables() {
         valid                     INT(11)      NOT NULL DEFAULT 0,
         order_id                  INT(11)      DEFAULT NULL,
         admin_notes               TEXT         DEFAULT NULL,
+        license_note              TEXT         DEFAULT NULL,
         PRIMARY KEY (license_id),
         KEY product_id (product_id),
         KEY variation_id (variation_id),
@@ -192,6 +193,12 @@ function lflow_maybe_upgrade_db() {
     $cols = $wpdb->get_col( "SHOW COLUMNS FROM {$wpdb->prefix}lflow_licenses LIKE 'admin_notes'" );
     if ( empty( $cols ) ) {
         $wpdb->query( "ALTER TABLE {$wpdb->prefix}lflow_licenses ADD COLUMN admin_notes TEXT DEFAULT NULL" );
+    }
+
+    // Add license_note (customer-visible note) if missing
+    $cols = $wpdb->get_col( "SHOW COLUMNS FROM {$wpdb->prefix}lflow_licenses LIKE 'license_note'" );
+    if ( empty( $cols ) ) {
+        $wpdb->query( "ALTER TABLE {$wpdb->prefix}lflow_licenses ADD COLUMN license_note TEXT DEFAULT NULL" );
     }
 
     // Add new columns to licensed_products if missing

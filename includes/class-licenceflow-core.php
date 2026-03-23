@@ -503,6 +503,7 @@ class LicenceFlow_Core {
             $license['times'] = $times;
 
             // Strip admin-only fields before passing to templates
+            // license_note is intentionally kept — it is customer-visible
             unset( $license['expiration_date'], $license['admin_notes'], $license['license_key'] );
 
             $result[] = $license;

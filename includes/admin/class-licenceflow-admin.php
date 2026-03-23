@@ -291,6 +291,7 @@ class LicenceFlow_Admin {
             'license_status'  => sanitize_key( $_POST['license_status'] ?? 'available' ),
             'expiration_date' => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
             'valid'           => $security->sanitize_int( $_POST['valid'] ?? 0 ),
+            'license_note'    => sanitize_textarea_field( $_POST['license_note'] ?? '' ),
             'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times' => $delivre_x_times,
         );

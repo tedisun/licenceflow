@@ -30,7 +30,7 @@ if ( isset( $_POST['lflow_export_nonce'] ) ) {
         header( 'Pragma: no-cache' );
 
         $out = fopen( 'php://output', 'w' );
-        fputcsv( $out, array( 'license_id', 'product_id', 'variation_id', 'license_type', 'license_status', 'license_value', 'expiration_date', 'valid', 'sold_date', 'order_id', 'owner_email', 'admin_notes' ) );
+        fputcsv( $out, array( 'license_id', 'product_id', 'variation_id', 'license_type', 'license_status', 'license_value', 'expiration_date', 'valid', 'sold_date', 'order_id', 'owner_email', 'license_note', 'admin_notes' ) );
 
         foreach ( $licenses as $row ) {
             $type   = $row['license_type'] ?? 'key';
@@ -54,6 +54,7 @@ if ( isset( $_POST['lflow_export_nonce'] ) ) {
                 $row['sold_date'] ?? '',
                 $row['order_id'] ?? '',
                 $row['owner_email_address'] ?? '',
+                $row['license_note'] ?? '',
                 $row['admin_notes'] ?? '',
             ) );
         }
@@ -78,6 +79,7 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
         $txt_valid        = absint( $_POST['txt_valid'] ?? 0 );
         $txt_expiry       = sanitize_text_field( $_POST['txt_expiration_date'] ?? '' );
         $txt_notes        = sanitize_textarea_field( $_POST['txt_admin_notes'] ?? '' );
+        $txt_license_note = sanitize_textarea_field( $_POST['txt_license_note'] ?? '' );
 
         $valid_types    = array_keys( lflow_license_types() );
         $valid_statuses = array_keys( lflow_license_statuses() );
@@ -95,6 +97,14 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
         foreach ( $lines as $line ) {
             $line = trim( $line );
             if ( $line === '' ) { $skipped++; continue; }
+
+            // Parse inline note: "LICENSE_VALUE || note visible par le client"
+            $inline_note = $txt_license_note; // default to form field
+            if ( strpos( $line, '||' ) !== false ) {
+                $parts_note  = explode( '||', $line, 2 );
+                $line        = trim( $parts_note[0] );
+                $inline_note = sanitize_textarea_field( trim( $parts_note[1] ) );
+            }
 
             // Serialize based on type
             if ( $txt_type === 'key' ) {
@@ -118,15 +128,16 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
             if ( $serialized === '' ) { $errors++; continue; }
 
             $data = array(
-                'product_id'              => $txt_product_id,
-                'variation_id'            => $txt_variation_id,
-                'license_key'             => $serialized,
-                'license_type'            => $txt_type,
-                'license_status'          => $txt_status,
-                'delivre_x_times'         => $txt_delivre,
+                'product_id'                => $txt_product_id,
+                'variation_id'              => $txt_variation_id,
+                'license_key'               => $serialized,
+                'license_type'              => $txt_type,
+                'license_status'            => $txt_status,
+                'delivre_x_times'           => $txt_delivre,
                 'remaining_delivre_x_times' => $txt_delivre,
-                'valid'                   => $txt_valid,
-                'admin_notes'             => $txt_notes,
+                'valid'                     => $txt_valid,
+                'license_note'              => $inline_note,
+                'admin_notes'               => $txt_notes,
             );
             if ( $txt_expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $txt_expiry ) ) {
                 $data['expiration_date'] = $txt_expiry;
@@ -182,11 +193,12 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                 $line++;
                 if ( $line === 1 ) continue; // Skip header
 
-                $type   = sanitize_key( $row[0] ?? 'key' );
-                $value  = $row[1] ?? '';
-                $expiry = sanitize_text_field( $row[2] ?? '' );
-                $valid  = absint( $row[3] ?? 0 );
-                $notes  = sanitize_textarea_field( $row[4] ?? '' );
+                $type         = sanitize_key( $row[0] ?? 'key' );
+                $value        = $row[1] ?? '';
+                $expiry       = sanitize_text_field( $row[2] ?? '' );
+                $valid        = absint( $row[3] ?? 0 );
+                $license_note = sanitize_textarea_field( $row[4] ?? '' );
+                $notes        = sanitize_textarea_field( $row[5] ?? '' );
 
                 if ( empty( $value ) || ! in_array( $type, $valid_types, true ) ) {
                     $errors++;
@@ -214,6 +226,7 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                     'product_id'   => $import_product_id ?: 0,
                     'license_key'  => $serialized,
                     'license_type' => $type,
+                    'license_note' => $license_note,
                     'admin_notes'  => $notes,
                     'valid'        => $valid,
                 );
@@ -335,6 +348,13 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                         </td>
                     </tr>
                     <tr>
+                        <th><label for="txt_license_note"><?php esc_html_e( 'Note client (défaut)', 'licenceflow' ); ?></label></th>
+                        <td>
+                            <textarea id="txt_license_note" name="txt_license_note" rows="2" style="width:300px;" placeholder="<?php esc_attr_e( 'Ex : Code Antivirus et VPN (réf: I37)', 'licenceflow' ); ?>"></textarea>
+                            <p class="description"><?php esc_html_e( 'Visible par le client. Peut être surchargée ligne par ligne avec la syntaxe : CLE || note spécifique.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
                         <th><label for="txt_admin_notes"><?php esc_html_e( 'Notes internes', 'licenceflow' ); ?></label></th>
                         <td>
                             <textarea id="txt_admin_notes" name="txt_admin_notes" rows="2" style="width:300px;" placeholder="<?php esc_attr_e( 'Ex. : Lot acheté le 22/03/2026 chez le fournisseur X', 'licenceflow' ); ?>"></textarea>
@@ -388,7 +408,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     </tr>
                 </table>
 
-                <p class="description"><?php esc_html_e( 'Colonnes : license_id, product_id, variation_id, license_type, license_status, license_value, expiration_date, valid, sold_date, order_id, owner_email, admin_notes.', 'licenceflow' ); ?></p>
+                <p class="description"><?php esc_html_e( 'Colonnes : license_id, product_id, variation_id, license_type, license_status, license_value, expiration_date, valid, sold_date, order_id, owner_email, license_note, admin_notes.', 'licenceflow' ); ?></p>
                 <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Télécharger le CSV', 'licenceflow' ); ?></button></p>
             </form>
         </div>
@@ -421,7 +441,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                 </table>
 
                 <p class="description">
-                    <?php esc_html_e( 'Colonnes (sans en-tête) : license_type | license_value | expiration_date (Y-m-d) | valid (jours) | admin_notes.', 'licenceflow' ); ?><br>
+                    <?php esc_html_e( 'Colonnes (sans en-tête) : license_type | license_value | expiration_date (Y-m-d) | valid (jours) | license_note | admin_notes.', 'licenceflow' ); ?><br>
                     <?php esc_html_e( 'Pour "account" : username|password. Pour "link" : url|label. Pour "code" : code|note.', 'licenceflow' ); ?>
                 </p>
                 <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Importer le CSV', 'licenceflow' ); ?></button></p>

@@ -261,9 +261,10 @@ function lflow_is_url( string $str ): bool {
  * @param string $context  'email' or 'website'
  */
 function lflow_render_license_card( array $license, string $context = 'website' ): void {
-    $type    = $license['license_type'] ?? 'key';
-    $value   = $license['parsed_value'] ?? '';
-    $expiry  = $license['customer_expiry'] ?? '';
+    $type         = $license['license_type'] ?? 'key';
+    $value        = $license['parsed_value'] ?? '';
+    $expiry       = $license['customer_expiry'] ?? '';
+    $license_note = trim( $license['license_note'] ?? '' );
 
     $product_name   = '';
     $variation_name = '';
@@ -358,6 +359,11 @@ function lflow_render_license_card( array $license, string $context = 'website' 
                 echo '</button>';
             }
             break;
+    }
+
+    // Customer-visible note (set by admin per licence, visible by customer)
+    if ( $license_note ) {
+        echo '<p style="margin:10px 0 0; font-size:.9em; color:#3c434a;">' . nl2br( esc_html( $license_note ) ) . '</p>';
     }
 
     // "Utilisable X fois" badge for multi-delivery licenses

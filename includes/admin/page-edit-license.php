@@ -35,6 +35,7 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
             'license_status'  => sanitize_key( $_POST['license_status'] ?? 'available' ),
             'expiration_date' => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
             'valid'           => $security->sanitize_int( $_POST['valid'] ?? 0 ),
+            'license_note'    => sanitize_textarea_field( $_POST['license_note'] ?? '' ),
             'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times' => max( 1, $security->sanitize_int( $_POST['delivre_x_times'] ?? 1 ) ),
         );
@@ -272,6 +273,15 @@ $variations        = LicenceFlow_Product_Config::get_variation_options( (int) $l
                                 <span style="color:#646970; margin-left:8px; font-size:.875rem;">→ <?php echo esc_html( $ce ); ?></span>
                             <?php endif;
                         endif; ?>
+                    </td>
+                </tr>
+
+                <!-- Customer note -->
+                <tr>
+                    <th><label for="lflow-license-note"><?php esc_html_e( 'Note client', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <textarea id="lflow-license-note" name="license_note" rows="2" style="width:100%;"><?php echo esc_textarea( $license['license_note'] ?? '' ); ?></textarea>
+                        <p class="lflow-field-hint"><?php esc_html_e( 'Affiché sous la licence dans l\'email, la page de confirmation, l\'historique et le PDF. Visible par le client.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 

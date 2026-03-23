@@ -151,6 +151,7 @@ class LicenceFlow_API_V1 {
             'valid'           => absint( $request->get_param( 'valid' ) ?: 0 ),
             'delivre_x_times'           => max( 1, absint( $request->get_param( 'delivre_x_times' ) ?: 1 ) ),
             'remaining_delivre_x_times' => max( 1, absint( $request->get_param( 'delivre_x_times' ) ?: 1 ) ),
+            'license_note'              => sanitize_textarea_field( $request->get_param( 'license_note' ) ?: '' ),
             'admin_notes'               => sanitize_textarea_field( $request->get_param( 'admin_notes' ) ?: '' ),
         );
 
@@ -190,6 +191,9 @@ class LicenceFlow_API_V1 {
         }
         if ( null !== $request->get_param( 'valid' ) ) {
             $data['valid'] = absint( $request->get_param( 'valid' ) );
+        }
+        if ( null !== $request->get_param( 'license_note' ) ) {
+            $data['license_note'] = sanitize_textarea_field( $request->get_param( 'license_note' ) );
         }
         if ( null !== $request->get_param( 'admin_notes' ) ) {
             $data['admin_notes'] = sanitize_textarea_field( $request->get_param( 'admin_notes' ) );
@@ -319,6 +323,7 @@ class LicenceFlow_API_V1 {
             'order_id'                  => $license['order_id'] ? (int) $license['order_id'] : null,
             'delivre_x_times'           => (int) ( $license['delivre_x_times'] ?? 1 ),
             'remaining_delivre_x_times' => (int) ( $license['remaining_delivre_x_times'] ?? 1 ),
+            'license_note'              => $license['license_note'] ?? null,
             'admin_notes'               => $license['admin_notes'] ?? null,
         );
 
@@ -356,6 +361,7 @@ class LicenceFlow_API_V1 {
             'expiration_date' => array( 'type' => 'string', 'default' => '' ),
             'valid'           => array( 'type' => 'integer', 'default' => 0, 'minimum' => 0 ),
             'delivre_x_times' => array( 'type' => 'integer', 'default' => 1, 'minimum' => 1 ),
+            'license_note'    => array( 'type' => 'string', 'default' => '' ),
             'admin_notes'     => array( 'type' => 'string', 'default' => '' ),
         );
     }
