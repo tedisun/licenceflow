@@ -149,8 +149,9 @@ class LicenceFlow_API_V1 {
             'license_type'    => $type,
             'license_status'  => sanitize_key( $request->get_param( 'license_status' ) ?: 'available' ),
             'valid'           => absint( $request->get_param( 'valid' ) ?: 0 ),
-            'delivre_x_times' => max( 1, absint( $request->get_param( 'delivre_x_times' ) ?: 1 ) ),
-            'admin_notes'     => sanitize_textarea_field( $request->get_param( 'admin_notes' ) ?: '' ),
+            'delivre_x_times'           => max( 1, absint( $request->get_param( 'delivre_x_times' ) ?: 1 ) ),
+            'remaining_delivre_x_times' => max( 1, absint( $request->get_param( 'delivre_x_times' ) ?: 1 ) ),
+            'admin_notes'               => sanitize_textarea_field( $request->get_param( 'admin_notes' ) ?: '' ),
         );
 
         $expiry = sanitize_text_field( $request->get_param( 'expiration_date' ) ?: '' );
@@ -248,9 +249,18 @@ class LicenceFlow_API_V1 {
             return new WP_REST_Response( array( 'code' => 'order_not_found', 'message' => 'Order not found.' ), 404 );
         }
 
+        // Check availability
+        if ( (int) $license['remaining_delivre_x_times'] <= 0 || $license['license_status'] === 'expired' ) {
+            return new WP_REST_Response( array( 'code' => 'not_available', 'message' => 'License has no remaining deliveries.' ), 409 );
+        }
+
+        $new_remaining = max( 0, (int) $license['remaining_delivre_x_times'] - 1 );
+        $new_status    = $new_remaining === 0 ? 'sold' : 'available';
+
         // Assign the license to the order
         LicenceFlow_License_DB::update( $license_id, array(
-            'license_status'            => 'sold',
+            'license_status'            => $new_status,
+            'remaining_delivre_x_times' => $new_remaining,
             'sold_date'                 => current_time( 'Y-m-d' ),
             'owner_email_address'       => $order->get_billing_email(),
             'owner_first_name'          => $order->get_billing_first_name(),

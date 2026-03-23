@@ -18,7 +18,6 @@ class LicenceFlow_Product_Metabox {
 
     private function __construct() {
         add_action( 'add_meta_boxes', array( $this, 'register' ) );
-        add_action( 'save_post_product', array( $this, 'save' ), 10, 2 );
         add_action( 'woocommerce_process_product_meta', array( $this, 'save' ), 10, 2 );
     }
 

@@ -97,11 +97,19 @@ class LicenceFlow_License_DB {
             $params[] = (int) $args['order_id'];
         }
         if ( ! empty( $args['search'] ) ) {
-            $like     = '%' . $wpdb->esc_like( $args['search'] ) . '%';
-            $where[]  = '(owner_first_name LIKE %s OR owner_last_name LIKE %s OR owner_email_address LIKE %s)';
-            $params[] = $like;
-            $params[] = $like;
-            $params[] = $like;
+            $like = '%' . $wpdb->esc_like( $args['search'] ) . '%';
+            if ( ctype_digit( (string) $args['search'] ) ) {
+                $where[]  = '(owner_first_name LIKE %s OR owner_last_name LIKE %s OR owner_email_address LIKE %s OR order_id = %d)';
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = (int) $args['search'];
+            } else {
+                $where[]  = '(owner_first_name LIKE %s OR owner_last_name LIKE %s OR owner_email_address LIKE %s)';
+                $params[] = $like;
+                $params[] = $like;
+                $params[] = $like;
+            }
         }
 
         $where_sql = implode( ' AND ', $where );
@@ -294,12 +302,26 @@ class LicenceFlow_License_DB {
         }
 
         $ids_placeholder = implode( ',', array_map( 'intval', $license_ids ) );
-        $result = $wpdb->query(
-            $wpdb->prepare(
-                "UPDATE {$wpdb->prefix}lflow_licenses SET license_status = %s WHERE license_id IN ($ids_placeholder)",
-                $status
-            )
-        );
+
+        if ( $status === 'available' ) {
+            // When restoring to 'available', also reset remaining_delivre_x_times to delivre_x_times
+            // so the license is actually deliverable again (fetch_available requires remaining > 0).
+            $result = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}lflow_licenses
+                     SET license_status = %s, remaining_delivre_x_times = delivre_x_times
+                     WHERE license_id IN ($ids_placeholder)",
+                    $status
+                )
+            );
+        } else {
+            $result = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}lflow_licenses SET license_status = %s WHERE license_id IN ($ids_placeholder)",
+                    $status
+                )
+            );
+        }
 
         return $result !== false;
     }

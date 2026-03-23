@@ -75,10 +75,9 @@ class LicenceFlow_Core {
         // Prevent double delivery
         if ( $order->get_meta( '_lflow_delivered' ) === '1' ) return;
 
-        $fifo         = LicenceFlow_Settings::get( 'lflow_key_delivery' ) !== 'lifo';
-        $stock_sync   = LicenceFlow_Settings::is_on( 'lflow_stock_sync' );
-        $diff_keys    = LicenceFlow_Settings::is_on( 'lflow_different_keys' );
-        $all_ids      = array();
+        $fifo       = LicenceFlow_Settings::get( 'lflow_key_delivery' ) !== 'lifo';
+        $stock_sync = LicenceFlow_Settings::is_on( 'lflow_stock_sync' );
+        $all_ids    = array();
         $delivery_map = array(); // item_key => [ license_ids ]
 
         foreach ( $order->get_items() as $item_key => $item ) {

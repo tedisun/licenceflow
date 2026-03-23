@@ -284,16 +284,15 @@ class LicenceFlow_Admin {
 
         $delivre_x_times = max( 1, $security->sanitize_int( $_POST['delivre_x_times'] ?? 1 ) );
         $data = array(
-            'product_id'                => $product_id,
-            'variation_id'              => $variation_id,
-            'license_key'               => $serialized,
-            'license_type'              => $type,
-            'license_status'            => sanitize_key( $_POST['license_status'] ?? 'available' ),
-            'expiration_date'           => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
-            'valid'                     => $security->sanitize_int( $_POST['valid'] ?? 0 ),
-            'admin_notes'               => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
-            'delivre_x_times'           => $delivre_x_times,
-            'remaining_delivre_x_times' => $delivre_x_times,
+            'product_id'      => $product_id,
+            'variation_id'    => $variation_id,
+            'license_key'     => $serialized,
+            'license_type'    => $type,
+            'license_status'  => sanitize_key( $_POST['license_status'] ?? 'available' ),
+            'expiration_date' => $security->sanitize_date( $_POST['expiration_date'] ?? '' ),
+            'valid'           => $security->sanitize_int( $_POST['valid'] ?? 0 ),
+            'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
+            'delivre_x_times' => $delivre_x_times,
         );
 
         // Remove empty expiration_date to avoid storing '0000-00-00'
@@ -302,9 +301,16 @@ class LicenceFlow_Admin {
         }
 
         if ( $license_id > 0 ) {
+            // On update: also update remaining if admin explicitly submitted it
+            $remaining = $security->sanitize_int( $_POST['remaining_delivre_x_times'] ?? -1 );
+            if ( $remaining >= 0 ) {
+                $data['remaining_delivre_x_times'] = min( $remaining, $delivre_x_times );
+            }
             $ok = LicenceFlow_License_DB::update( $license_id, $data );
             $id = $ok ? $license_id : false;
         } else {
+            // On insert: remaining starts at delivre_x_times
+            $data['remaining_delivre_x_times'] = $delivre_x_times;
             $id = LicenceFlow_License_DB::insert( $data );
         }
 

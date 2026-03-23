@@ -38,6 +38,11 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
             'admin_notes'     => sanitize_textarea_field( $_POST['admin_notes'] ?? '' ),
             'delivre_x_times' => max( 1, $security->sanitize_int( $_POST['delivre_x_times'] ?? 1 ) ),
         );
+        // Update remaining only if admin explicitly submitted it; cap at delivre_x_times
+        $submitted_remaining = $security->sanitize_int( $_POST['remaining_delivre_x_times'] ?? -1 );
+        if ( $submitted_remaining >= 0 ) {
+            $data['remaining_delivre_x_times'] = min( $submitted_remaining, $data['delivre_x_times'] );
+        }
         if ( $data['expiration_date'] === '' ) {
             $data['expiration_date'] = null;
         }
@@ -86,9 +91,15 @@ $variations        = LicenceFlow_Product_Config::get_variation_options( (int) $l
             <strong><?php esc_html_e( 'Client :', 'licenceflow' ); ?></strong>
             <?php echo esc_html( trim( $license['owner_first_name'] . ' ' . $license['owner_last_name'] ) ); ?>
             (<?php echo esc_html( $license['owner_email_address'] ); ?>)
-            <?php if ( ! empty( $license['order_id'] ) ) : ?>
+            <?php if ( ! empty( $license['order_id'] ) ) :
+                $order_url = get_edit_post_link( absint( $license['order_id'] ) );
+                if ( ! $order_url ) {
+                    // HPOS
+                    $order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . absint( $license['order_id'] ) );
+                }
+                ?>
                 &mdash; <?php esc_html_e( 'Commande', 'licenceflow' ); ?>
-                <a href="<?php echo esc_url( admin_url( 'post.php?post=' . absint( $license['order_id'] ) . '&action=edit' ) ); ?>">#<?php echo absint( $license['order_id'] ); ?></a>
+                <a href="<?php echo esc_url( $order_url ); ?>">#<?php echo absint( $license['order_id'] ); ?></a>
             <?php endif; ?>
             &mdash; <?php esc_html_e( 'Vendu le', 'licenceflow' ); ?>
             <?php echo esc_html( lflow_format_date( $license['sold_date'] ?? '' ) ); ?>
@@ -227,13 +238,16 @@ $variations        = LicenceFlow_Product_Config::get_variation_options( (int) $l
                     <th><label for="lflow-delivre-x-times"><?php esc_html_e( 'Livrable X fois', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="number" id="lflow-delivre-x-times" name="delivre_x_times" value="<?php echo absint( $license['delivre_x_times'] ?? 1 ); ?>" min="1" style="width:80px;">
-                        <span style="color:#646970; margin-left:8px; font-size:.875rem;">
-                            <?php printf(
-                                /* translators: %d: remaining delivery count */
-                                esc_html__( '(reste : %d)', 'licenceflow' ),
-                                absint( $license['remaining_delivre_x_times'] ?? 0 )
-                            ); ?>
-                        </span>
+                        <p class="description" style="margin-top:4px;"><?php esc_html_e( 'Nombre maximum de livraisons pour cette licence.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- Remaining deliveries -->
+                <tr>
+                    <th><label for="lflow-remaining-delivre"><?php esc_html_e( 'Livraisons restantes', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="number" id="lflow-remaining-delivre" name="remaining_delivre_x_times" value="<?php echo absint( $license['remaining_delivre_x_times'] ?? 0 ); ?>" min="0" style="width:80px;">
+                        <p class="description" style="margin-top:4px;"><?php esc_html_e( 'Réinitialisez à la valeur max pour rendre la licence de nouveau livrable.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 
