@@ -27,6 +27,7 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_bulk_action',          array( $this, 'ajax_bulk_action' ) );
         add_action( 'wp_ajax_lflow_sync_stock',           array( $this, 'ajax_sync_stock' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
+        add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
     }
 
     public static function get_instance(): self {
@@ -412,6 +413,23 @@ class LicenceFlow_Admin {
         update_option( 'lflow_api_key', $new_key );
 
         wp_send_json_success( array( 'api_key' => $new_key ) );
+    }
+
+    // ── AJAX: check for update ────────────────────────────────────────────────
+
+    public function ajax_check_update(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Permission refusée.', 'licenceflow' ) ) );
+        }
+
+        $status = LicenceFlow_Updater::get_instance()->fetch_update_status();
+
+        if ( ! empty( $status['error'] ) ) {
+            wp_send_json_error( array( 'message' => $status['message'] ?? __( 'Erreur inconnue.', 'licenceflow' ) ) );
+        }
+
+        wp_send_json_success( $status );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

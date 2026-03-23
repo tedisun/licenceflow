@@ -312,8 +312,63 @@ class LicenceFlow_Updater {
      */
     public static function force_check(): void {
         delete_transient( self::TRANSIENT_KEY );
-        // Force WordPress to re-check all plugins immediately
         delete_site_transient( 'update_plugins' );
         wp_update_plugins();
+    }
+
+    /**
+     * Fetch a fresh update status from GitHub and return structured data.
+     * Used by the AJAX "check for update" button in the settings page.
+     *
+     * @return array {
+     *   bool   error       True if GitHub was unreachable.
+     *   string current     Installed version.
+     *   string latest      Latest GitHub version.
+     *   bool   has_update  True if latest > current.
+     *   string update_url  WP upgrade URL (only when has_update).
+     *   string changelog_url GitHub release URL (only when has_update).
+     * }
+     */
+    public function fetch_update_status(): array {
+        // Force a fresh GitHub call
+        delete_transient( self::TRANSIENT_KEY );
+
+        $release = $this->get_latest_release();
+        if ( ! $release ) {
+            return array( 'error' => true, 'message' => __( 'Impossible de contacter GitHub. Vérifiez votre connexion et réessayez.', 'licenceflow' ) );
+        }
+
+        $latest     = $this->parse_version( $release->tag_name );
+        $current    = LFLOW_VERSION;
+        $has_update = version_compare( $latest, $current, '>' );
+
+        $result = array(
+            'error'      => false,
+            'current'    => $current,
+            'latest'     => $latest,
+            'has_update' => $has_update,
+        );
+
+        if ( $has_update ) {
+            // Register in the WP update_plugins transient so the upgrade URL works immediately
+            $site_transient = get_site_transient( 'update_plugins' );
+            if ( ! is_object( $site_transient ) ) {
+                $site_transient = new stdClass();
+            }
+            if ( ! isset( $site_transient->checked ) ) {
+                $site_transient->checked = array();
+            }
+            $site_transient->checked[ self::PLUGIN_BASENAME ]  = $current;
+            $site_transient->response[ self::PLUGIN_BASENAME ] = $this->build_update_object( $release, $latest );
+            set_site_transient( 'update_plugins', $site_transient );
+
+            $result['update_url']    = wp_nonce_url(
+                admin_url( 'update.php?action=upgrade-plugin&plugin=' . rawurlencode( self::PLUGIN_BASENAME ) ),
+                'upgrade-plugin_' . self::PLUGIN_BASENAME
+            );
+            $result['changelog_url'] = 'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/releases/tag/' . $release->tag_name;
+        }
+
+        return $result;
     }
 }

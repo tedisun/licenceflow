@@ -9,21 +9,6 @@
 
 defined( 'ABSPATH' ) || exit;
 
-// Handle "Force check for updates" action
-if (
-    isset( $_GET['lflow_action'] ) &&
-    $_GET['lflow_action'] === 'force_update_check' &&
-    isset( $_GET['_wpnonce'] ) &&
-    wp_verify_nonce( sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ), 'lflow_force_update_check' ) &&
-    current_user_can( 'manage_options' )
-) {
-    LicenceFlow_Updater::force_check();
-    add_action( 'admin_notices', function () {
-        echo '<div class="notice notice-success is-dismissible"><p>';
-        esc_html_e( 'Vérification des mises à jour forcée. WordPress consultera GitHub lors du prochain chargement de la page des mises à jour.', 'licenceflow' );
-        echo '</p></div>';
-    } );
-}
 
 $current_tab = sanitize_key( $_GET['tab'] ?? 'general' );
 $tabs = array(
@@ -151,24 +136,19 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <tr>
                     <th><?php esc_html_e( 'Mises à jour', 'licenceflow' ); ?></th>
                     <td>
-                        <?php
-                        $force_check_url = wp_nonce_url(
-                            add_query_arg( array( 'page' => 'lflow-settings', 'tab' => 'general', 'lflow_action' => 'force_update_check' ), admin_url( 'admin.php' ) ),
-                            'lflow_force_update_check'
-                        );
-                        ?>
-                        <a href="<?php echo esc_url( $force_check_url ); ?>" class="button">
-                            <?php esc_html_e( 'Vérifier les mises à jour maintenant', 'licenceflow' ); ?>
-                        </a>
-                        <p class="description">
+                        <p style="margin:0 0 8px;">
                             <?php
                             printf(
                                 /* translators: %s: current plugin version */
-                                esc_html__( 'Version installée : %s. Force WordPress à consulter GitHub immédiatement (sans attendre les 12h de cache).', 'licenceflow' ),
+                                esc_html__( 'Version installée : %s', 'licenceflow' ),
                                 '<strong>' . esc_html( LFLOW_VERSION ) . '</strong>'
                             );
                             ?>
                         </p>
+                        <button type="button" id="lflow-check-update-btn" class="button">
+                            <?php esc_html_e( 'Vérifier les mises à jour maintenant', 'licenceflow' ); ?>
+                        </button>
+                        <div id="lflow-update-result" style="margin-top:12px; display:none;"></div>
                     </td>
                 </tr>
             </table>
@@ -281,3 +261,62 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
     </div>
 
 </div>
+
+<script>
+(function($){
+    $('#lflow-check-update-btn').on('click', function(){
+        var $btn    = $(this);
+        var $result = $('#lflow-update-result');
+
+        $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Vérification…', 'licenceflow' ) ); ?>');
+        $result.hide().html('');
+
+        $.post(lflow_admin.ajax_url, {
+            action: 'lflow_check_update',
+            nonce:  lflow_admin.nonce
+        }, function(r){
+            $btn.prop('disabled', false).text('<?php echo esc_js( __( 'Vérifier les mises à jour maintenant', 'licenceflow' ) ); ?>');
+            $result.show();
+
+            if ( ! r.success ) {
+                $result.html(
+                    '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                    '⚠️ ' + ( r.data && r.data.message ? r.data.message : '<?php echo esc_js( __( 'Erreur inconnue.', 'licenceflow' ) ); ?>' ) +
+                    '</div>'
+                );
+                return;
+            }
+
+            var d = r.data;
+
+            if ( ! d.has_update ) {
+                $result.html(
+                    '<div style="color:#1d7a3a; background:#f0fdf4; border:1px solid #b0e0ba; border-radius:4px; padding:10px 14px;">' +
+                    '✅ <?php echo esc_js( __( 'LicenceFlow', 'licenceflow' ) ); ?> ' + d.current + ' <?php echo esc_js( __( 'est à jour.', 'licenceflow' ) ); ?>' +
+                    '</div>'
+                );
+            } else {
+                $result.html(
+                    '<div style="background:#fffbeb; border:1px solid #f0d060; border-radius:4px; padding:12px 14px;">' +
+                    '<p style="margin:0 0 10px; font-weight:600; color:#92400e;">⬆️ <?php echo esc_js( __( 'Nouvelle version disponible', 'licenceflow' ) ); ?> : ' + d.latest +
+                    ' <span style="font-weight:400; color:#646970;">(<?php echo esc_js( __( 'installée', 'licenceflow' ) ); ?> : ' + d.current + ')</span></p>' +
+                    '<a href="' + d.update_url + '" class="button button-primary" style="margin-right:8px;">' +
+                    '⬇️ <?php echo esc_js( __( 'Installer la mise à jour', 'licenceflow' ) ); ?> ' + d.latest +
+                    '</a>' +
+                    '<a href="' + d.changelog_url + '" class="button" target="_blank" rel="noopener">' +
+                    '📋 <?php echo esc_js( __( 'Notes de version', 'licenceflow' ) ); ?>' +
+                    '</a>' +
+                    '</div>'
+                );
+            }
+        }).fail(function(){
+            $btn.prop('disabled', false).text('<?php echo esc_js( __( 'Vérifier les mises à jour maintenant', 'licenceflow' ) ); ?>');
+            $result.show().html(
+                '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                '⚠️ <?php echo esc_js( __( 'Erreur réseau. Veuillez réessayer.', 'licenceflow' ) ); ?>' +
+                '</div>'
+            );
+        });
+    });
+}(jQuery));
+</script>
