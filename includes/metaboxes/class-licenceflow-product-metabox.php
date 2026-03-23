@@ -88,10 +88,10 @@ class LicenceFlow_Product_Metabox {
                         </td>
                     </tr>
                     <tr>
-                        <th style="padding:6px 10px;"><label><?php esc_html_e( 'Quantité à livrer', 'licenceflow' ); ?></label></th>
+                        <th style="padding:6px 10px;"><label><?php esc_html_e( 'Validité client (jours)', 'licenceflow' ); ?></label></th>
                         <td style="padding:6px;">
-                            <input type="number" name="lflow_delivery_qty" value="<?php echo absint( $config['delivery_qty'] ); ?>" min="1" style="width:70px;">
-                            <p class="description"><?php esc_html_e( 'Nombre de licences livrées par unité commandée.', 'licenceflow' ); ?></p>
+                            <input type="number" name="lflow_default_valid" value="<?php echo absint( $config['default_valid'] ?? 0 ); ?>" min="0" style="width:80px;">
+                            <p class="description"><?php esc_html_e( 'Pré-remplit la validité lors de l\'ajout de licences. Laisser à 0 pour illimité.', 'licenceflow' ); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -116,7 +116,7 @@ class LicenceFlow_Product_Metabox {
                         if ( ! $variation ) continue;
                         $vcfg = $variation_configs[ $variation_id ] ?? array(
                             'active' => 0, 'license_type' => $config['license_type'],
-                            'delivery_qty' => 1, 'show_in' => 'both',
+                            'delivery_qty' => 1, 'show_in' => 'both', 'default_valid' => 0,
                         );
                         ?>
                         <div class="lflow-variation-row">
@@ -134,8 +134,8 @@ class LicenceFlow_Product_Metabox {
                                 </select>
                             </label>
                             &nbsp;&nbsp;
-                            <label><?php esc_html_e( 'Qté :', 'licenceflow' ); ?>
-                                <input type="number" name="lflow_variation[<?php echo absint( $variation_id ); ?>][delivery_qty]" value="<?php echo absint( $vcfg['delivery_qty'] ); ?>" min="1" style="width:60px;">
+                            <label><?php esc_html_e( 'Validité (j) :', 'licenceflow' ); ?>
+                                <input type="number" name="lflow_variation[<?php echo absint( $variation_id ); ?>][default_valid]" value="<?php echo absint( $vcfg['default_valid'] ?? 0 ); ?>" min="0" style="width:60px;" title="<?php esc_attr_e( '0 = illimité', 'licenceflow' ); ?>">
                             </label>
                         </div>
                         <?php
@@ -257,10 +257,11 @@ class LicenceFlow_Product_Metabox {
 
         // Save main product config
         $data = array(
-            'active'       => isset( $_POST['lflow_active'] ) ? 1 : 0,
-            'license_type' => sanitize_key( $_POST['lflow_license_type'] ?? 'key' ),
-            'delivery_qty' => max( 1, absint( $_POST['lflow_delivery_qty'] ?? 1 ) ),
-            'show_in'      => sanitize_key( $_POST['lflow_show_in'] ?? 'both' ),
+            'active'        => isset( $_POST['lflow_active'] ) ? 1 : 0,
+            'license_type'  => sanitize_key( $_POST['lflow_license_type'] ?? 'key' ),
+            'delivery_qty'  => 1, // fixed at 1; not exposed in UI
+            'show_in'       => sanitize_key( $_POST['lflow_show_in'] ?? 'both' ),
+            'default_valid' => max( 0, absint( $_POST['lflow_default_valid'] ?? 0 ) ),
         );
         LicenceFlow_Product_Config::save_config( $post_id, 0, $data );
 
@@ -268,10 +269,11 @@ class LicenceFlow_Product_Metabox {
         if ( ! empty( $_POST['lflow_variation'] ) && is_array( $_POST['lflow_variation'] ) ) {
             foreach ( $_POST['lflow_variation'] as $variation_id => $vdata ) {
                 $vdata = array(
-                    'active'       => isset( $vdata['active'] ) ? 1 : 0,
-                    'license_type' => sanitize_key( $vdata['license_type'] ?? 'key' ),
-                    'delivery_qty' => max( 1, absint( $vdata['delivery_qty'] ?? 1 ) ),
-                    'show_in'      => sanitize_key( $vdata['show_in'] ?? 'both' ),
+                    'active'        => isset( $vdata['active'] ) ? 1 : 0,
+                    'license_type'  => sanitize_key( $vdata['license_type'] ?? 'key' ),
+                    'delivery_qty'  => 1, // fixed at 1
+                    'show_in'       => sanitize_key( $vdata['show_in'] ?? 'both' ),
+                    'default_valid' => max( 0, absint( $vdata['default_valid'] ?? 0 ) ),
                 );
                 LicenceFlow_Product_Config::save_config( $post_id, absint( $variation_id ), $vdata );
             }

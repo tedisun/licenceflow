@@ -15,10 +15,11 @@ class LicenceFlow_Product_Config {
 
     /** Default config values */
     private static array $defaults = array(
-        'active'       => 0,
-        'license_type' => 'key',
-        'delivery_qty' => 1,
-        'show_in'      => 'both',
+        'active'        => 0,
+        'license_type'  => 'key',
+        'delivery_qty'  => 1,
+        'show_in'       => 'both',
+        'default_valid' => 0,
     );
 
     // ── Read ──────────────────────────────────────────────────────────────────
@@ -123,6 +124,15 @@ class LicenceFlow_Product_Config {
     }
 
     /**
+     * Get the default customer validity (days) for a product/variation.
+     * Returns 0 if no default is set (unlimited).
+     */
+    public static function get_default_valid( int $product_id, int $variation_id = 0 ): int {
+        $config = self::get_config( $product_id, $variation_id );
+        return max( 0, (int) ( $config['default_valid'] ?? 0 ) );
+    }
+
+    /**
      * Get the display channel for a product/variation.
      *
      * @return string  email|website|both
@@ -152,14 +162,15 @@ class LicenceFlow_Product_Config {
 
         // Sanitize and whitelist
         $row = array(
-            'product_id'   => $product_id,
-            'variation_id' => $variation_id,
-            'active'       => isset( $data['active'] ) ? (int) (bool) $data['active'] : 0,
-            'license_type' => in_array( $data['license_type'] ?? '', array_keys( lflow_license_types() ), true )
-                              ? $data['license_type'] : 'key',
-            'delivery_qty' => max( 1, (int) ( $data['delivery_qty'] ?? 1 ) ),
-            'show_in'      => in_array( $data['show_in'] ?? '', array( 'email', 'website', 'both' ), true )
-                              ? $data['show_in'] : 'both',
+            'product_id'    => $product_id,
+            'variation_id'  => $variation_id,
+            'active'        => isset( $data['active'] ) ? (int) (bool) $data['active'] : 0,
+            'license_type'  => in_array( $data['license_type'] ?? '', array_keys( lflow_license_types() ), true )
+                               ? $data['license_type'] : 'key',
+            'delivery_qty'  => max( 1, (int) ( $data['delivery_qty'] ?? 1 ) ),
+            'show_in'       => in_array( $data['show_in'] ?? '', array( 'email', 'website', 'both' ), true )
+                               ? $data['show_in'] : 'both',
+            'default_valid' => max( 0, (int) ( $data['default_valid'] ?? 0 ) ),
         );
 
         $existing = $wpdb->get_var(

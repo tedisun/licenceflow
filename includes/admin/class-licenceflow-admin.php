@@ -246,9 +246,11 @@ class LicenceFlow_Admin {
             wp_send_json_error( array( 'message' => __( 'Produit invalide.', 'licenceflow' ) ) );
         }
 
+        $variation_id  = absint( $_POST['variation_id'] ?? 0 );
         $variation_map = LicenceFlow_Product_Config::get_variation_options( $product_id );
-        $config        = LicenceFlow_Product_Config::get_config( $product_id, 0 );
+        $config        = LicenceFlow_Product_Config::get_config( $product_id, $variation_id );
         $license_type  = $config['license_type'] ?? 'key';
+        $default_valid = (int) ( $config['default_valid'] ?? 0 );
 
         // Convert to indexed array of {id, label} for consistent JS iteration
         $variations = array();
@@ -257,8 +259,9 @@ class LicenceFlow_Admin {
         }
 
         wp_send_json_success( array(
-            'variations'   => $variations,
-            'license_type' => $license_type,
+            'variations'    => $variations,
+            'license_type'  => $license_type,
+            'default_valid' => $default_valid,
         ) );
     }
 

@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.1.1
+ * Version:     1.1.2
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.1.1' );
+define( 'LFLOW_VERSION',   '1.1.2' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -150,13 +150,14 @@ function lflow_create_tables() {
 
     // Licensed products config
     $sql = "CREATE TABLE {$wpdb->prefix}lflow_licensed_products (
-        config_id    INT(11)     NOT NULL AUTO_INCREMENT,
-        product_id   INT(11)     NOT NULL DEFAULT 0,
-        variation_id INT(11)     NOT NULL DEFAULT 0,
-        active       TINYINT(1)  NOT NULL DEFAULT 0,
-        license_type VARCHAR(20) NOT NULL DEFAULT 'key',
-        delivery_qty INT(11)     NOT NULL DEFAULT 1,
-        show_in      VARCHAR(10) NOT NULL DEFAULT 'both',
+        config_id     INT(11)     NOT NULL AUTO_INCREMENT,
+        product_id    INT(11)     NOT NULL DEFAULT 0,
+        variation_id  INT(11)     NOT NULL DEFAULT 0,
+        active        TINYINT(1)  NOT NULL DEFAULT 0,
+        license_type  VARCHAR(20) NOT NULL DEFAULT 'key',
+        delivery_qty  INT(11)     NOT NULL DEFAULT 1,
+        show_in       VARCHAR(10) NOT NULL DEFAULT 'both',
+        default_valid INT(11)     NOT NULL DEFAULT 0,
         PRIMARY KEY (config_id),
         UNIQUE KEY product_variation (product_id, variation_id)
     ) $charset;";
@@ -203,9 +204,10 @@ function lflow_maybe_upgrade_db() {
 
     // Add new columns to licensed_products if missing
     $new_cols = array(
-        'license_type' => "ADD COLUMN license_type VARCHAR(20) NOT NULL DEFAULT 'key'",
-        'delivery_qty' => "ADD COLUMN delivery_qty INT(11) NOT NULL DEFAULT 1",
-        'show_in'      => "ADD COLUMN show_in VARCHAR(10) NOT NULL DEFAULT 'both'",
+        'license_type'  => "ADD COLUMN license_type VARCHAR(20) NOT NULL DEFAULT 'key'",
+        'delivery_qty'  => "ADD COLUMN delivery_qty INT(11) NOT NULL DEFAULT 1",
+        'show_in'       => "ADD COLUMN show_in VARCHAR(10) NOT NULL DEFAULT 'both'",
+        'default_valid' => "ADD COLUMN default_valid INT(11) NOT NULL DEFAULT 0",
     );
     foreach ( $new_cols as $col => $ddl ) {
         $exists = $wpdb->get_col( "SHOW COLUMNS FROM {$wpdb->prefix}lflow_licensed_products LIKE '$col'" );

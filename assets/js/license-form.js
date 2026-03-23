@@ -43,10 +43,10 @@
                     var data = response.data;
 
                     // Populate variations dropdown
-                    if (data.variations && Object.keys(data.variations).length > 0) {
+                    if (data.variations && data.variations.length > 0) {
                         var $select = $('#lflow-variation-id');
-                        $.each(data.variations, function (vid, vname) {
-                            $select.append('<option value="' + vid + '">' + vname + '</option>');
+                        $.each(data.variations, function (i, v) {
+                            $select.append('<option value="' + v.id + '">' + v.label + '</option>');
                         });
                         $('#lflow-variation-row').show();
                     }
@@ -54,6 +54,11 @@
                     // Update license type
                     var type = data.license_type || 'key';
                     LicenseForm.setLicenseType(type);
+
+                    // Pre-fill default validity
+                    if (typeof data.default_valid !== 'undefined') {
+                        $('#lflow-valid').val(data.default_valid);
+                    }
                 });
             });
         },
@@ -73,8 +78,13 @@
                     product_id: productId,
                     variation_id: variationId
                 }, function (response) {
-                    if (response.success && response.data.license_type) {
-                        LicenseForm.setLicenseType(response.data.license_type);
+                    if (!response.success) return;
+                    var data = response.data;
+                    if (data.license_type) {
+                        LicenseForm.setLicenseType(data.license_type);
+                    }
+                    if (typeof data.default_valid !== 'undefined') {
+                        $('#lflow-valid').val(data.default_valid);
                     }
                 });
             });
