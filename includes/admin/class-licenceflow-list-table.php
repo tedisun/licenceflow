@@ -154,18 +154,19 @@ class LicenceFlow_List_Table extends WP_List_Table {
     }
 
     protected function column_stock_col( $item ): string {
-        static $avail_cache = array();
-        static $total_cache = array();
-        $ckey = (int) $item['product_id'] . '_' . (int) $item['variation_id'];
-        if ( ! isset( $avail_cache[ $ckey ] ) ) {
-            $avail_cache[ $ckey ] = LicenceFlow_License_DB::count_available( (int) $item['product_id'], (int) $item['variation_id'] );
-            $total_cache[ $ckey ] = LicenceFlow_License_DB::count_total( (int) $item['product_id'], (int) $item['variation_id'] );
+        $remaining = (int) ( $item['remaining_delivre_x_times'] ?? 1 );
+        $total     = (int) ( $item['delivre_x_times'] ?? 1 );
+
+        if ( $remaining <= 0 ) {
+            $color = 'color:#d63638;';
+        } elseif ( $remaining < $total ) {
+            $color = 'color:#dba617;';
+        } else {
+            $color = 'color:#00a32a;';
         }
-        $available = $avail_cache[ $ckey ];
-        $total     = $total_cache[ $ckey ];
-        $color     = $available === 0 ? 'color:#d63638;' : ( $available <= 3 ? 'color:#dba617;' : '' );
-        return '<span style="font-weight:600;' . $color . '" title="' . esc_attr__( 'Disponibles / Total', 'licenceflow' ) . '">'
-            . absint( $available ) . '/' . absint( $total )
+
+        return '<span style="font-weight:600;' . $color . '" title="' . esc_attr__( 'Livraisons restantes / Livraisons max pour cette licence', 'licenceflow' ) . '">'
+            . $remaining . '/' . $total
             . '</span>';
     }
 

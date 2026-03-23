@@ -401,7 +401,7 @@ class LicenceFlow_License_DB {
             $wpdb->prepare(
                 "SELECT
                     product_id,
-                    SUM(CASE WHEN license_status = 'available' THEN 1 ELSE 0 END) AS available,
+                    COALESCE(SUM(CASE WHEN license_status = 'available' AND remaining_delivre_x_times > 0 THEN remaining_delivre_x_times ELSE 0 END), 0) AS available,
                     SUM(CASE WHEN license_status = 'sold' THEN 1 ELSE 0 END) AS sold,
                     COUNT(*) AS total
                  FROM {$wpdb->prefix}lflow_licenses
@@ -448,9 +448,9 @@ class LicenceFlow_License_DB {
 
         return $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT product_id, variation_id, COUNT(*) AS available
+                "SELECT product_id, variation_id, COALESCE(SUM(remaining_delivre_x_times), 0) AS available
                  FROM {$wpdb->prefix}lflow_licenses
-                 WHERE license_status = 'available'
+                 WHERE license_status = 'available' AND remaining_delivre_x_times > 0
                  GROUP BY product_id, variation_id
                  HAVING available < %d
                  ORDER BY available ASC",
@@ -486,10 +486,12 @@ class LicenceFlow_License_DB {
     public static function count_available( int $product_id, int $variation_id = 0 ): int {
         global $wpdb;
 
+        // Use SUM(remaining_delivre_x_times) — consistent with sync_product_stock.
+        // A license with delivre_x_times=5 remaining=3 contributes 3 slots, not 1 row.
         if ( $variation_id > 0 ) {
             return (int) $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d AND variation_id = %d AND license_status = 'available'",
+                    "SELECT COALESCE(SUM(remaining_delivre_x_times), 0) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d AND variation_id = %d AND license_status = 'available' AND remaining_delivre_x_times > 0",
                     $product_id, $variation_id
                 )
             );
@@ -497,7 +499,7 @@ class LicenceFlow_License_DB {
 
         return (int) $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d AND license_status = 'available'",
+                "SELECT COALESCE(SUM(remaining_delivre_x_times), 0) FROM {$wpdb->prefix}lflow_licenses WHERE product_id = %d AND license_status = 'available' AND remaining_delivre_x_times > 0",
                 $product_id
             )
         );
