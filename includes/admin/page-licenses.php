@@ -59,7 +59,7 @@ if ( $cur_product > 0 ) {
         <?php $table->views(); ?>
 
         <!-- ── Bulk actions ── -->
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+        <div style="clear:both; display:flex; align-items:center; gap:8px; margin:8px 0 6px;">
             <select id="lflow-bulk-action" name="bulk_action">
                 <option value=""><?php esc_html_e( '— Action groupée —', 'licenceflow' ); ?></option>
                 <option value="delete"><?php esc_html_e( 'Supprimer', 'licenceflow' ); ?></option>

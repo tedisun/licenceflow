@@ -106,8 +106,11 @@ class LicenceFlow_List_Table extends WP_List_Table {
         $name    = $product ? esc_html( $product->get_name() ) : '#' . absint( $item['product_id'] );
         if ( $item['variation_id'] > 0 ) {
             $variation = wc_get_product( $item['variation_id'] );
-            if ( $variation ) {
-                $name .= '<br><small style="color:#646970">' . esc_html( $variation->get_formatted_name() ) . '</small>';
+            if ( $variation && $variation->is_type( 'variation' ) ) {
+                $var_label = wc_get_formatted_variation( $variation, true, false );
+                if ( $var_label ) {
+                    $name .= '<br><small style="color:#646970">' . esc_html( $var_label ) . '</small>';
+                }
             }
         }
         return $name;

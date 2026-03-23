@@ -30,15 +30,27 @@ $heading        = count( $licenses ) > 1 ? $label_plural : $label_singular;
         $expiry = $license['customer_expiry'] ?? '';
         $times  = isset( $license['times'] ) ? (int) $license['times'] : 1;
 
-        // Product name
-        $product = wc_get_product( $license['product_id'] ?? 0 );
-        $pname   = $product ? $product->get_name() : '#' . ( $license['product_id'] ?? '?' );
+        // Product name + variation name
+        $product        = wc_get_product( $license['product_id'] ?? 0 );
+        $pname          = $product ? $product->get_name() : '#' . ( $license['product_id'] ?? '?' );
+        $variation_name = '';
+        if ( ! empty( $license['variation_id'] ) && (int) $license['variation_id'] > 0 ) {
+            $variation = wc_get_product( (int) $license['variation_id'] );
+            if ( $variation && $variation->is_type( 'variation' ) ) {
+                $variation_name = wc_get_formatted_variation( $variation, true, false );
+            }
+        }
     ?>
     <div style="border:1px solid #ddd; border-radius:4px; padding:10px 12px; margin-bottom:10px; background:#f9f9f9;">
 
-        <p style="margin:0 0 6px; font-weight:bold; color:#1d2327;">
+        <p style="margin:0 <?php echo $variation_name ? '2px' : '6px'; ?> 0; font-weight:bold; color:#1d2327;">
             <?php echo esc_html( $pname ); ?>
         </p>
+        <?php if ( $variation_name ) : ?>
+        <p style="margin:0 0 6px; font-size:11px; color:#555;">
+            <?php echo esc_html( $variation_name ); ?>
+        </p>
+        <?php endif; ?>
 
         <?php if ( $type === 'key' ) : ?>
             <p style="margin:0; font-family:monospace; font-size:13px; background:#fff; border:1px solid #ccc; padding:5px 8px; letter-spacing:.05em;">

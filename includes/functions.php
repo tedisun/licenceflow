@@ -265,11 +265,18 @@ function lflow_render_license_card( array $license, string $context = 'website' 
     $value   = $license['parsed_value'] ?? '';
     $expiry  = $license['customer_expiry'] ?? '';
 
-    $product_name = '';
+    $product_name   = '';
+    $variation_name = '';
     if ( ! empty( $license['product_id'] ) ) {
         $product = wc_get_product( (int) $license['product_id'] );
         if ( $product ) {
             $product_name = $product->get_name();
+        }
+    }
+    if ( ! empty( $license['variation_id'] ) && (int) $license['variation_id'] > 0 ) {
+        $variation = wc_get_product( (int) $license['variation_id'] );
+        if ( $variation && $variation->is_type( 'variation' ) ) {
+            $variation_name = wc_get_formatted_variation( $variation, true, false );
         }
     }
 
@@ -283,9 +290,12 @@ function lflow_render_license_card( array $license, string $context = 'website' 
 
     echo '<div class="' . $card_class . '" style="' . esc_attr( $card_style ) . '">';
 
-    // Product name
+    // Product name + variation name
     if ( $product_name ) {
-        echo '<p style="margin:0 0 10px; font-weight:600; color:#1d2327;">' . esc_html( $product_name ) . '</p>';
+        echo '<p style="margin:0 0 ' . ( $variation_name ? '2px' : '10px' ) . '; font-weight:600; color:#1d2327;">' . esc_html( $product_name ) . '</p>';
+    }
+    if ( $variation_name ) {
+        echo '<p style="margin:0 0 10px; font-size:.85em; color:#646970;">' . esc_html( $variation_name ) . '</p>';
     }
 
     // Content by type
