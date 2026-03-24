@@ -97,9 +97,10 @@ $heading        = count( $groups ) > 1 || count( $groups[0]['items'] ) > 1 ? $la
             $link_url   = $parsed['url'] ?? '';
             $link_label = ! empty( $parsed['label'] ) ? $parsed['label'] : __( 'Cliquer pour activer', 'licenceflow' );
             ?>
-            <p style="margin:0; font-size:12px;">
-                <span style="color:#555;"><?php echo esc_html( $link_label ); ?> : </span>
-                <?php echo esc_html( $link_url ); ?>
+            <p style="margin:0;">
+                <a href="<?php echo esc_url( $link_url ); ?>" style="display:inline-block; padding:6px 14px; background:#2271b1; color:#ffffff; text-decoration:none; border-radius:4px; font-size:12px; font-weight:bold;">
+                    <?php echo esc_html( $link_label ); ?>
+                </a>
             </p>
 
         <?php elseif ( $type === 'code' ) : ?>
