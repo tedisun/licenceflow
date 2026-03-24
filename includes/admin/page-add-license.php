@@ -208,7 +208,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <th><label for="lflow-valid"><?php esc_html_e( 'Validité client (jours)', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="number" id="lflow-valid" name="valid" value="0" min="0" style="width:80px;">
-                        <p class="lflow-field-hint"><?php esc_html_e( 'Nombre de jours de validité à compter de la date d\'achat. Affiché au client comme "Valide jusqu\'au [date d\'achat + X jours]". Laisser 0 pour aucune limite.', 'licenceflow' ); ?></p>
+                        <p class="lflow-field-hint"><?php esc_html_e( 'Nombre de jours de validité à compter de la date d\'achat. Affiché au client comme "À utiliser avant le [date d\'achat + X jours]". Laisser 0 pour aucune limite.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 

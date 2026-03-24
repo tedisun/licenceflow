@@ -344,7 +344,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                         <th><label for="txt_valid"><?php esc_html_e( 'Validité client (jours)', 'licenceflow' ); ?></label></th>
                         <td>
                             <input type="number" id="txt_valid" name="txt_valid" value="0" min="0" style="width:80px;">
-                            <p class="description"><?php esc_html_e( '0 = pas de limite. Sinon, le client verra "Valide jusqu\'au [date d\'achat + N jours]".', 'licenceflow' ); ?></p>
+                            <p class="description"><?php esc_html_e( '0 = pas de limite. Sinon, le client verra "À utiliser avant le [date d\'achat + N jours]".', 'licenceflow' ); ?></p>
                         </td>
                     </tr>
                     <tr>

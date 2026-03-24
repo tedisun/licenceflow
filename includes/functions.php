@@ -381,7 +381,7 @@ function lflow_render_license_card( array $license, string $context = 'website' 
     if ( $expiry ) {
         echo '<p style="margin:' . ( $times > 1 ? '4px' : '10px' ) . ' 0 0; font-size:.85em; color:#646970;">';
         printf(
-            esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ),
+            esc_html__( 'À utiliser avant le %s', 'licenceflow' ),
             '<strong>' . esc_html( $expiry ) . '</strong>'
         );
         echo '</p>';
@@ -579,7 +579,7 @@ function lflow_render_license_group( array $group, string $context = 'website' )
         }
         if ( $show_per_expiry ) {
             echo '<p style="margin:4px 0 0; font-size:.85em; color:#646970;">';
-            printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), '<strong>' . esc_html( $expiry ) . '</strong>' );
+            printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), '<strong>' . esc_html( $expiry ) . '</strong>' );
             echo '</p>';
         }
     }
@@ -600,7 +600,7 @@ function lflow_render_license_group( array $group, string $context = 'website' )
     }
     if ( $common_expiry ) {
         echo '<p style="margin:' . ( $common_times !== null && $common_times > 1 ? '4px' : '10px' ) . ' 0 0; font-size:.85em; color:#646970;">';
-        printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), '<strong>' . esc_html( $common_expiry ) . '</strong>' );
+        printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), '<strong>' . esc_html( $common_expiry ) . '</strong>' );
         echo '</p>';
     }
 

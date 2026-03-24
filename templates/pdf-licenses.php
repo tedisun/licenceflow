@@ -128,7 +128,7 @@ $heading        = count( $groups ) > 1 || count( $groups[0]['items'] ) > 1 ? $la
 
         <?php if ( $show_per_expiry ) : ?>
             <p style="margin:4px 0 0; font-size:11px; color:#555;">
-                <?php printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), esc_html( $expiry ) ); ?>
+                <?php printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), esc_html( $expiry ) ); ?>
             </p>
         <?php endif; ?>
 
@@ -149,7 +149,7 @@ $heading        = count( $groups ) > 1 || count( $groups[0]['items'] ) > 1 ? $la
 
         <?php if ( $common_expiry ) : ?>
             <p style="margin:4px 0 0; font-size:11px; color:#555;">
-                <?php printf( esc_html__( 'Valide jusqu\'au : %s', 'licenceflow' ), esc_html( $common_expiry ) ); ?>
+                <?php printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), esc_html( $common_expiry ) ); ?>
             </p>
         <?php endif; ?>
 
