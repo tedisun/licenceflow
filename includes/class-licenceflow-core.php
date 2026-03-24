@@ -29,9 +29,8 @@ class LicenceFlow_Core {
         add_action( 'woocommerce_order_details_after_order_table',     array( $this, 'inject_order_history_licenses' ), 10, 1 );
 
         // WooCommerce PDF Invoices & Packing Slips integration
-        // Register on both hooks for version compatibility (deduplicated internally)
+        // Hook fires after the order details + totals table, passing ($type, WC_Order)
         add_action( 'wpo_wcpdf_after_order_details', array( $this, 'inject_pdf_licenses' ), 10, 2 );
-        add_action( 'wpo_wcpdf_after_totals',        array( $this, 'inject_pdf_licenses' ), 10, 2 );
 
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );
@@ -323,16 +322,18 @@ class LicenceFlow_Core {
         // Accept 'invoice' and any type that isn't explicitly a packing slip
         if ( in_array( $document_type, array( 'packing-slip', 'credit-note' ), true ) ) return;
 
-        // Retrieve the WC_Order from the document object (API varies by plugin version)
-        if ( method_exists( $document, 'get_order' ) ) {
+        // Retrieve the WC_Order from the second argument.
+        // wpo_wcpdf_after_order_details passes $this->order (WC_Order) directly.
+        // Some older/other hooks pass a document wrapper — handle both.
+        if ( $document instanceof WC_Order ) {
+            $order = $document;
+        } elseif ( method_exists( $document, 'get_order' ) ) {
             $order = $document->get_order();
-        } elseif ( isset( $document->order ) ) {
+        } elseif ( isset( $document->order ) && $document->order instanceof WC_Order ) {
             $order = $document->order;
         } else {
             return;
         }
-
-        if ( ! $order instanceof WC_Order ) return;
 
         $order_id = $order->get_id();
 
