@@ -93,12 +93,13 @@ $heading        = count( $groups ) > 1 || count( $groups[0]['items'] ) > 1 ? $la
             </table>
 
         <?php elseif ( $type === 'link' ) : ?>
+            <?php
+            $link_url   = $parsed['url'] ?? '';
+            $link_label = ! empty( $parsed['label'] ) ? $parsed['label'] : __( 'Cliquer pour activer', 'licenceflow' );
+            ?>
             <p style="margin:0; font-size:12px;">
-                <span style="color:#555;"><?php esc_html_e( 'Lien', 'licenceflow' ); ?> : </span>
-                <?php echo esc_html( $parsed['url'] ?? '' ); ?>
-                <?php if ( ! empty( $parsed['label'] ) ) : ?>
-                    <span style="color:#555;"> (<?php echo esc_html( $parsed['label'] ); ?>)</span>
-                <?php endif; ?>
+                <span style="color:#555;"><?php echo esc_html( $link_label ); ?> : </span>
+                <?php echo esc_html( $link_url ); ?>
             </p>
 
         <?php elseif ( $type === 'code' ) : ?>

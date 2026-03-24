@@ -325,12 +325,11 @@ function lflow_render_license_card( array $license, string $context = 'website' 
 
         case 'link':
             $url   = is_array( $value ) ? ( $value['url'] ?? '' ) : '';
-            $label = is_array( $value ) ? ( $value['label'] ?? __( 'Cliquez pour activer', 'licenceflow' ) ) : __( 'Cliquez pour activer', 'licenceflow' );
+            $label = is_array( $value ) ? ( $value['label'] ?: __( 'Cliquer pour activer', 'licenceflow' ) ) : __( 'Cliquer pour activer', 'licenceflow' );
             if ( $url ) {
                 echo '<a href="' . esc_url( $url ) . '" style="display:inline-block; padding:8px 16px; background:#2271b1; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">';
                 echo esc_html( $label );
                 echo '</a>';
-                echo '<br><small style="color:#646970; font-size:.8em;">' . esc_html( $url ) . '</small>';
             }
             break;
 
@@ -540,11 +539,10 @@ function lflow_render_license_group( array $group, string $context = 'website' )
 
             case 'link':
                 $url   = is_array( $value ) ? ( $value['url'] ?? '' ) : '';
-                $label = is_array( $value ) ? ( $value['label'] ?? __( 'Cliquez pour activer', 'licenceflow' ) ) : __( 'Cliquez pour activer', 'licenceflow' );
+                $label = is_array( $value ) ? ( $value['label'] ?: __( 'Cliquer pour activer', 'licenceflow' ) ) : __( 'Cliquer pour activer', 'licenceflow' );
                 if ( $url ) {
                     echo '<a href="' . esc_url( $url ) . '" style="display:inline-block; padding:8px 16px; background:#2271b1; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">'
                         . esc_html( $label ) . '</a>';
-                    echo '<br><small style="color:#646970; font-size:.8em;">' . esc_html( $url ) . '</small>';
                 }
                 break;
 
