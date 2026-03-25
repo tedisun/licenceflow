@@ -303,19 +303,25 @@ function lflow_render_license_card( array $license, string $context = 'website' 
     switch ( $type ) {
 
         case 'account':
-            $username = is_array( $value ) ? ( $value['username'] ?? '' ) : '';
-            $password = is_array( $value ) ? ( $value['password'] ?? '' ) : '';
+            $username  = is_array( $value ) ? ( $value['username'] ?? '' ) : '';
+            $password  = is_array( $value ) ? ( $value['password'] ?? '' ) : '';
+            $copy_btn  = 'font-size:.8em; padding:1px 6px; cursor:pointer; margin-left:4px;';
             echo '<table style="border-collapse:collapse; font-size:.9em;">';
             echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Identifiant', 'licenceflow' ) . '</td>';
-            echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $username ) . '</code></td></tr>';
+            echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $username ) . '</code>';
+            if ( ! $is_email ) {
+                echo ' <button type="button" onclick="navigator.clipboard.writeText(\'' . esc_js( $username ) . '\').then(function(){this.textContent=\'' . esc_js( __( 'Copié !', 'licenceflow' ) ) . '\';}.bind(this));" style="' . $copy_btn . '">' . esc_html__( 'Copier', 'licenceflow' ) . '</button>';
+            }
+            echo '</td></tr>';
             echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Mot de passe', 'licenceflow' ) . '</td>';
             if ( $is_email ) {
                 echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></td></tr>';
             } else {
-                // On website: show/hide toggle
                 $unique_id = 'lflow-pass-' . absint( $license['license_id'] ?? rand() );
                 echo '<td>';
-                echo '<span id="' . esc_attr( $unique_id ) . '-val" style="display:none;"><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></span>';
+                echo '<span id="' . esc_attr( $unique_id ) . '-val" style="display:none;"><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code>';
+                echo ' <button type="button" onclick="navigator.clipboard.writeText(\'' . esc_js( $password ) . '\').then(function(){this.textContent=\'' . esc_js( __( 'Copié !', 'licenceflow' ) ) . '\';}.bind(this));" style="' . $copy_btn . '">' . esc_html__( 'Copier', 'licenceflow' ) . '</button>';
+                echo '</span>';
                 echo '<span id="' . esc_attr( $unique_id ) . '-mask">••••••••</span>';
                 echo ' <button type="button" onclick="document.getElementById(\'' . esc_js( $unique_id ) . '-val\').style.display=\'inline\';document.getElementById(\'' . esc_js( $unique_id ) . '-mask\').style.display=\'none\';this.style.display=\'none\';" style="font-size:.8em; padding:1px 6px; cursor:pointer;">' . esc_html__( 'Afficher', 'licenceflow' ) . '</button>';
                 echo '</td></tr>';
@@ -385,6 +391,23 @@ function lflow_render_license_card( array $license, string $context = 'website' 
             '<strong>' . esc_html( $expiry ) . '</strong>'
         );
         echo '</p>';
+
+        // Urgency warning: show when deadline is within 7 days (website only)
+        if ( ! $is_email && isset( $license['valid'] ) && (int) $license['valid'] > 0 && ! empty( $license['sold_date'] ) ) {
+            $exp_ts = (int) strtotime( $license['sold_date'] . ' + ' . (int) $license['valid'] . ' days' );
+            $days   = $exp_ts > 0 ? (int) ceil( ( $exp_ts - time() ) / DAY_IN_SECONDS ) : -1;
+            if ( $days >= 0 && $days <= 7 ) {
+                $warn_color = $days <= 2 ? '#d63638' : '#dba617';
+                echo '<p style="margin:2px 0 0; font-size:.85em; font-weight:600; color:' . $warn_color . ';">';
+                if ( $days === 0 ) {
+                    esc_html_e( 'Expire aujourd\'hui !', 'licenceflow' );
+                } else {
+                    /* translators: %d: number of days remaining to activate */
+                    printf( esc_html__( 'Plus que %d jour(s) pour activer', 'licenceflow' ), $days );
+                }
+                echo '</p>';
+            }
+        }
     }
 
     echo '</div>';
@@ -519,19 +542,25 @@ function lflow_render_license_group( array $group, string $context = 'website' )
             case 'account':
                 $username = is_array( $value ) ? ( $value['username'] ?? '' ) : '';
                 $password = is_array( $value ) ? ( $value['password'] ?? '' ) : '';
+                $copy_btn = 'font-size:.8em; padding:1px 6px; cursor:pointer; margin-left:4px;';
                 echo '<table style="border-collapse:collapse; font-size:.9em;">';
                 echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Identifiant', 'licenceflow' ) . '</td>';
-                echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $username ) . '</code></td></tr>';
+                echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $username ) . '</code>';
+                if ( ! $is_email ) {
+                    echo ' <button type="button" onclick="navigator.clipboard.writeText(\'' . esc_js( $username ) . '\').then(function(){this.textContent=\'' . esc_js( __( 'Copié !', 'licenceflow' ) ) . '\';}.bind(this));" style="' . $copy_btn . '">' . esc_html__( 'Copier', 'licenceflow' ) . '</button>';
+                }
+                echo '</td></tr>';
                 echo '<tr><td style="padding:4px 12px 4px 0; color:#646970;">' . esc_html__( 'Mot de passe', 'licenceflow' ) . '</td>';
                 if ( $is_email ) {
                     echo '<td><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></td></tr>';
                 } else {
                     $uid = 'lflow-pass-' . absint( $license['license_id'] ?? rand() );
                     echo '<td>';
-                    echo '<span id="' . esc_attr( $uid ) . '-val" style="display:none;"><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code></span>';
+                    echo '<span id="' . esc_attr( $uid ) . '-val" style="display:none;"><code style="background:#f0f0f1; padding:2px 6px; border-radius:3px;">' . esc_html( $password ) . '</code>';
+                    echo ' <button type="button" onclick="navigator.clipboard.writeText(\'' . esc_js( $password ) . '\').then(function(){this.textContent=\'' . esc_js( __( 'Copié !', 'licenceflow' ) ) . '\';}.bind(this));" style="' . $copy_btn . '">' . esc_html__( 'Copier', 'licenceflow' ) . '</button>';
+                    echo '</span>';
                     echo '<span id="' . esc_attr( $uid ) . '-mask">••••••••</span>';
-                    echo ' <button type="button" onclick="(function(b){document.getElementById(\'' . esc_js( $uid ) . '-val\').style.display=\'inline\';document.getElementById(\'' . esc_js( $uid ) . '-mask\').style.display=\'none\';b.style.display=\'none\';})(this);" style="font-size:.8em; padding:1px 6px; cursor:pointer;">'
-                        . esc_html__( 'Afficher', 'licenceflow' ) . '</button>';
+                    echo ' <button type="button" onclick="document.getElementById(\'' . esc_js( $uid ) . '-val\').style.display=\'inline\';document.getElementById(\'' . esc_js( $uid ) . '-mask\').style.display=\'none\';this.style.display=\'none\';" style="font-size:.8em; padding:1px 6px; cursor:pointer;">' . esc_html__( 'Afficher', 'licenceflow' ) . '</button>';
                     echo '</td></tr>';
                 }
                 echo '</table>';
@@ -581,6 +610,20 @@ function lflow_render_license_group( array $group, string $context = 'website' )
             echo '<p style="margin:4px 0 0; font-size:.85em; color:#646970;">';
             printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), '<strong>' . esc_html( $expiry ) . '</strong>' );
             echo '</p>';
+            if ( ! $is_email && isset( $license['valid'] ) && (int) $license['valid'] > 0 && ! empty( $license['sold_date'] ) ) {
+                $exp_ts = (int) strtotime( $license['sold_date'] . ' + ' . (int) $license['valid'] . ' days' );
+                $days   = $exp_ts > 0 ? (int) ceil( ( $exp_ts - time() ) / DAY_IN_SECONDS ) : -1;
+                if ( $days >= 0 && $days <= 7 ) {
+                    $warn_color = $days <= 2 ? '#d63638' : '#dba617';
+                    echo '<p style="margin:2px 0 0; font-size:.85em; font-weight:600; color:' . $warn_color . ';">';
+                    if ( $days === 0 ) {
+                        esc_html_e( 'Expire aujourd\'hui !', 'licenceflow' );
+                    } else {
+                        printf( esc_html__( 'Plus que %d jour(s) pour activer', 'licenceflow' ), $days );
+                    }
+                    echo '</p>';
+                }
+            }
         }
     }
 
@@ -602,6 +645,20 @@ function lflow_render_license_group( array $group, string $context = 'website' )
         echo '<p style="margin:' . ( $common_times !== null && $common_times > 1 ? '4px' : '10px' ) . ' 0 0; font-size:.85em; color:#646970;">';
         printf( esc_html__( 'À utiliser avant le %s', 'licenceflow' ), '<strong>' . esc_html( $common_expiry ) . '</strong>' );
         echo '</p>';
+        if ( ! $is_email && ! empty( $items[0]['sold_date'] ) && (int) ( $items[0]['valid'] ?? 0 ) > 0 ) {
+            $exp_ts = (int) strtotime( $items[0]['sold_date'] . ' + ' . (int) $items[0]['valid'] . ' days' );
+            $days   = $exp_ts > 0 ? (int) ceil( ( $exp_ts - time() ) / DAY_IN_SECONDS ) : -1;
+            if ( $days >= 0 && $days <= 7 ) {
+                $warn_color = $days <= 2 ? '#d63638' : '#dba617';
+                echo '<p style="margin:2px 0 0; font-size:.85em; font-weight:600; color:' . $warn_color . ';">';
+                if ( $days === 0 ) {
+                    esc_html_e( 'Expire aujourd\'hui !', 'licenceflow' );
+                } else {
+                    printf( esc_html__( 'Plus que %d jour(s) pour activer', 'licenceflow' ), $days );
+                }
+                echo '</p>';
+            }
+        }
     }
 
     echo '</div>';

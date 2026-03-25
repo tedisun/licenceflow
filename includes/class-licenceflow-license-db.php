@@ -161,7 +161,8 @@ class LicenceFlow_License_DB {
 
         $order = $fifo ? 'ASC' : 'DESC';
 
-        // Fetch all available licenses with remaining uses > 0 (no LIMIT — we need to allocate)
+        // LIMIT $qty rows: worst case all licenses have remaining=1, so we need at most $qty rows.
+        // A license with remaining=5 satisfies 5 slots — in practice we need far fewer rows.
         if ( $variation_id > 0 ) {
             $rows = $wpdb->get_results(
                 $wpdb->prepare(
@@ -169,8 +170,9 @@ class LicenceFlow_License_DB {
                      WHERE product_id = %d AND variation_id = %d
                        AND license_status = 'available'
                        AND remaining_delivre_x_times > 0
-                     ORDER BY license_id $order",
-                    $product_id, $variation_id
+                     ORDER BY license_id $order
+                     LIMIT %d",
+                    $product_id, $variation_id, $qty
                 ),
                 ARRAY_A
             );
@@ -181,8 +183,9 @@ class LicenceFlow_License_DB {
                      WHERE product_id = %d
                        AND license_status = 'available'
                        AND remaining_delivre_x_times > 0
-                     ORDER BY license_id $order",
-                    $product_id
+                     ORDER BY license_id $order
+                     LIMIT %d",
+                    $product_id, $qty
                 ),
                 ARRAY_A
             );
@@ -480,6 +483,27 @@ class LicenceFlow_License_DB {
             ),
             ARRAY_A
         ) ?: array();
+    }
+
+    /**
+     * Count products with fewer than $threshold available licenses (for admin bar badge).
+     * Returns just the count — much lighter than get_low_stock_products().
+     */
+    public static function count_low_stock_products( int $threshold = 5 ): int {
+        global $wpdb;
+
+        return (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM (
+                     SELECT product_id
+                     FROM {$wpdb->prefix}lflow_licenses
+                     WHERE license_status = 'available' AND remaining_delivre_x_times > 0
+                     GROUP BY product_id, variation_id
+                     HAVING COALESCE(SUM(remaining_delivre_x_times), 0) < %d
+                 ) AS low_stock",
+                $threshold
+            )
+        );
     }
 
     /**

@@ -32,6 +32,9 @@ class LicenceFlow_Core {
         // Hook fires after the order details + totals table, passing ($type, WC_Order)
         add_action( 'wpo_wcpdf_after_order_details', array( $this, 'inject_pdf_licenses' ), 10, 2 );
 
+        // Refund: restore licenses to available when an order is refunded
+        add_action( 'woocommerce_order_refunded', array( $this, 'handle_refund' ), 10, 2 );
+
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );
 
@@ -149,6 +152,53 @@ class LicenceFlow_Core {
         $order->save();
 
         do_action( 'lflow_licenses_delivered', $order_id, $all_ids );
+    }
+
+    // ── Refund handling ───────────────────────────────────────────────────────
+
+    /**
+     * When an order is refunded, restore its licenses to 'available'.
+     * Restores remaining_delivre_x_times by the count of deliveries for this order.
+     * Clears owner info only if the license is fully restored (remaining == delivre_x_times).
+     *
+     * @param int $order_id
+     * @param int $refund_id  (unused, required by hook signature)
+     */
+    public function handle_refund( int $order_id, int $refund_id ): void {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) return;
+
+        $license_ids = $order->get_meta( '_lflow_licenses' );
+        if ( empty( $license_ids ) || ! is_array( $license_ids ) ) return;
+
+        // Count how many times each license was delivered for this order
+        $id_counts = array_count_values( array_map( 'intval', $license_ids ) );
+
+        foreach ( $id_counts as $lid => $times ) {
+            $license = LicenceFlow_License_DB::get( $lid );
+            if ( ! $license ) continue;
+
+            $max_remaining = (int) $license['delivre_x_times'];
+            $new_remaining = min( $max_remaining, (int) $license['remaining_delivre_x_times'] + $times );
+
+            $update = array(
+                'remaining_delivre_x_times' => $new_remaining,
+                'license_status'            => 'available',
+            );
+
+            // Clear owner only if fully restored
+            if ( $new_remaining === $max_remaining ) {
+                $update['owner_email_address'] = '';
+                $update['owner_first_name']    = '';
+                $update['owner_last_name']     = '';
+                $update['order_id']            = 0;
+                $update['sold_date']           = null;
+                $update['activation_date']     = null;
+            }
+
+            LicenceFlow_License_DB::update( $lid, $update );
+            $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+        }
     }
 
     // ── Stock sync ────────────────────────────────────────────────────────────
@@ -379,9 +429,9 @@ class LicenceFlow_Core {
             $this->send_expiry_alert_email( $expiring, $alert_email );
         }
 
-        // Low stock alerts (admin bar badge — refresh transient)
-        $low_stock = LicenceFlow_License_DB::get_low_stock_products( 5 );
-        set_transient( 'lflow_low_stock_count', count( $low_stock ), DAY_IN_SECONDS );
+        // Low stock alerts (admin bar badge — COUNT only, no full row fetch)
+        $low_stock_count = LicenceFlow_License_DB::count_low_stock_products( 5 );
+        set_transient( 'lflow_low_stock_count', $low_stock_count, DAY_IN_SECONDS );
     }
 
     /**

@@ -33,6 +33,12 @@ class LicenceFlow_Product_Config {
     public static function get_config( int $product_id, int $variation_id = 0 ): array {
         global $wpdb;
 
+        $cache_key = 'lflow_cfg_' . $product_id . '_' . $variation_id;
+        $cached    = wp_cache_get( $cache_key, 'licenceflow' );
+        if ( $cached !== false ) {
+            return $cached;
+        }
+
         $row = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}lflow_licensed_products WHERE product_id = %d AND variation_id = %d",
@@ -41,18 +47,17 @@ class LicenceFlow_Product_Config {
             ARRAY_A
         );
 
-        if ( ! $row ) {
-            return array_merge(
-                self::$defaults,
-                array(
-                    'config_id'    => null,
-                    'product_id'   => $product_id,
-                    'variation_id' => $variation_id,
-                )
-            );
-        }
+        $result = $row ?: array_merge(
+            self::$defaults,
+            array(
+                'config_id'    => null,
+                'product_id'   => $product_id,
+                'variation_id' => $variation_id,
+            )
+        );
 
-        return $row;
+        wp_cache_set( $cache_key, $result, 'licenceflow', 300 );
+        return $result;
     }
 
     /**
@@ -190,6 +195,9 @@ class LicenceFlow_Product_Config {
             $result = $wpdb->insert( $wpdb->prefix . 'lflow_licensed_products', $row );
         }
 
+        // Invalidate cache for this product/variation
+        wp_cache_delete( 'lflow_cfg_' . $product_id . '_' . $variation_id, 'licenceflow' );
+
         return $result !== false;
     }
 
@@ -213,23 +221,25 @@ class LicenceFlow_Product_Config {
     public static function get_licensed_products_for_select(): array {
         global $wpdb;
 
-        $product_ids = $wpdb->get_col(
-            "SELECT DISTINCT product_id FROM {$wpdb->prefix}lflow_licensed_products WHERE active = 1"
+        // Single JOIN query instead of N wc_get_product() calls
+        $rows = $wpdb->get_results(
+            "SELECT DISTINCT lp.product_id, p.post_title
+             FROM {$wpdb->prefix}lflow_licensed_products lp
+             INNER JOIN {$wpdb->posts} p ON p.ID = lp.product_id
+             WHERE lp.active = 1
+               AND p.post_status NOT IN ('trash', 'auto-draft')
+             ORDER BY p.post_title ASC",
+            ARRAY_A
         );
 
-        if ( empty( $product_ids ) ) {
+        if ( empty( $rows ) ) {
             return array();
         }
 
         $result = array();
-        foreach ( $product_ids as $id ) {
-            $product = wc_get_product( (int) $id );
-            if ( $product ) {
-                $result[ (int) $id ] = $product->get_name();
-            }
+        foreach ( $rows as $row ) {
+            $result[ (int) $row['product_id'] ] = $row['post_title'];
         }
-
-        asort( $result );
         return $result;
     }
 

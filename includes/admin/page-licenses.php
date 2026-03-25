@@ -48,6 +48,20 @@ if ( $cur_product > 0 ) {
     <a href="<?php echo esc_url( LicenceFlow_Admin::add_license_url() ); ?>" class="page-title-action">
         <?php esc_html_e( 'Ajouter une licence', 'licenceflow' ); ?>
     </a>
+    <?php
+    $export_params = array_filter( array(
+        'action'         => 'lflow_quick_export',
+        'license_status' => $cur_status,
+        'product_id'     => $cur_product ?: null,
+        'variation_id'   => $cur_variation ?: null,
+        'license_type'   => $cur_type,
+        's'              => $cur_search,
+    ) );
+    ?>
+    <a href="<?php echo esc_url( wp_nonce_url( add_query_arg( $export_params, admin_url( 'admin-post.php' ) ), 'lflow_quick_export' ) ); ?>"
+       class="page-title-action">
+        <?php esc_html_e( 'Exporter CSV', 'licenceflow' ); ?>
+    </a>
     <hr class="wp-header-end">
 
     <div id="lflow-inline-notice" class="lflow-notice-inline" style="display:none;"></div>

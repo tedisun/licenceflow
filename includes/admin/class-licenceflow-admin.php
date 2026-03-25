@@ -28,6 +28,9 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_sync_stock',           array( $this, 'ajax_sync_stock' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
+
+        // Quick CSV export (admin-post)
+        add_action( 'admin_post_lflow_quick_export', array( $this, 'handle_quick_export' ) );
     }
 
     public static function get_instance(): self {
@@ -184,20 +187,31 @@ class LicenceFlow_Admin {
         if ( ! lflow_current_user_can() ) {
             return;
         }
-        if ( ! LicenceFlow_Settings::has_default_encryption_keys() ) {
-            return;
+
+        // OpenSSL manquant — CRITIQUE : les licences sont stockées en clair
+        if ( ! extension_loaded( 'openssl' ) ) {
+            echo '<div class="notice notice-error"><p>';
+            echo wp_kses(
+                __( '<strong>LicenceFlow — CRITIQUE :</strong> L\'extension PHP <code>openssl</code> est absente sur ce serveur. Les licences sont stockées <strong>en clair</strong> dans la base de données. Contactez votre hébergeur pour activer OpenSSL.', 'licenceflow' ),
+                array( 'strong' => array(), 'code' => array() )
+            );
+            echo '</p></div>';
         }
-        $settings_url = admin_url( 'admin.php?page=lflow-settings&tab=encryption' );
-        echo '<div class="notice notice-error"><p>';
-        printf(
-            wp_kses(
-                /* translators: %s: URL to encryption settings */
-                __( '<strong>LicenceFlow :</strong> Vos clés de chiffrement sont encore aux valeurs par défaut. <a href="%s">Changez-les maintenant</a> pour protéger vos données.', 'licenceflow' ),
-                array( 'strong' => array(), 'a' => array( 'href' => array() ) )
-            ),
-            esc_url( $settings_url )
-        );
-        echo '</p></div>';
+
+        // Clés de chiffrement par défaut
+        if ( LicenceFlow_Settings::has_default_encryption_keys() ) {
+            $settings_url = admin_url( 'admin.php?page=lflow-settings&tab=encryption' );
+            echo '<div class="notice notice-error"><p>';
+            printf(
+                wp_kses(
+                    /* translators: %s: URL to encryption settings */
+                    __( '<strong>LicenceFlow :</strong> Vos clés de chiffrement sont encore aux valeurs par défaut. <a href="%s">Changez-les maintenant</a> pour protéger vos données.', 'licenceflow' ),
+                    array( 'strong' => array(), 'a' => array( 'href' => array() ) )
+                ),
+                esc_url( $settings_url )
+            );
+            echo '</p></div>';
+        }
     }
 
     // ── Page renderers ────────────────────────────────────────────────────────
@@ -464,6 +478,68 @@ class LicenceFlow_Admin {
         }
 
         wp_send_json_success( $status );
+    }
+
+    // ── Quick CSV export ──────────────────────────────────────────────────────
+
+    public function handle_quick_export(): void {
+        if ( ! check_admin_referer( 'lflow_quick_export' ) ) {
+            wp_die( esc_html__( 'Nonce invalide.', 'licenceflow' ) );
+        }
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_die( esc_html__( 'Permission refusée.', 'licenceflow' ) );
+        }
+
+        $args = array(
+            'status'       => sanitize_key( $_GET['license_status'] ?? '' ),
+            'product_id'   => absint( $_GET['product_id'] ?? 0 ),
+            'variation_id' => absint( $_GET['variation_id'] ?? 0 ),
+            'type'         => sanitize_key( $_GET['license_type'] ?? '' ),
+            'search'       => sanitize_text_field( $_GET['s'] ?? '' ),
+            'per_page'     => 5000,
+        );
+
+        $result   = LicenceFlow_License_DB::get_list( $args );
+        $licenses = $result['items'];
+
+        $filename = 'licenceflow-export-' . gmdate( 'Y-m-d' ) . '.csv';
+        header( 'Content-Type: text/csv; charset=utf-8' );
+        header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+        header( 'Pragma: no-cache' );
+
+        $out = fopen( 'php://output', 'w' );
+        // BOM for Excel UTF-8
+        fwrite( $out, "\xEF\xBB\xBF" );
+        fputcsv( $out, array(
+            'ID', 'Produit', 'Variation', 'Type', 'Statut',
+            'Valeur', 'Livraisons max', 'Livraisons restantes',
+            'Propriétaire', 'Email', 'Commande', 'Date vente',
+            'Date expiration (admin)', 'Validité client (jours)', 'Note',
+        ) );
+
+        foreach ( $licenses as $license ) {
+            $decrypted = lflow_decrypt( $license['license_key'] ?? '' );
+            fputcsv( $out, array(
+                $license['license_id'],
+                $license['product_id'],
+                $license['variation_id'] ?: '',
+                $license['license_type'],
+                $license['license_status'],
+                $decrypted,
+                $license['delivre_x_times'],
+                $license['remaining_delivre_x_times'],
+                trim( ( $license['owner_first_name'] ?? '' ) . ' ' . ( $license['owner_last_name'] ?? '' ) ),
+                $license['owner_email_address'] ?? '',
+                $license['order_id'] ?: '',
+                $license['sold_date'] ?? '',
+                $license['expiration_date'] ?? '',
+                $license['valid'] ?? 0,
+                $license['license_note'] ?? '',
+            ) );
+        }
+
+        fclose( $out );
+        exit;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
