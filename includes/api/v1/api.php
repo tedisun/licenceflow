@@ -32,6 +32,16 @@ class LicenceFlow_API_V1 {
             ),
         ) );
 
+        // POST /licenses/bulk
+        register_rest_route( self::NAMESPACE, '/licenses/bulk', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'bulk_create_licenses' ),
+            'permission_callback' => array( $this, 'check_api_key' ),
+            'args'                => array(
+                'licenses' => array( 'required' => true, 'type' => 'array' ),
+            ),
+        ) );
+
         // GET /licenses/{id}, PUT /licenses/{id}, DELETE /licenses/{id}
         register_rest_route( self::NAMESPACE, '/licenses/(?P<id>\d+)', array(
             array(
@@ -94,9 +104,9 @@ class LicenceFlow_API_V1 {
         $page     = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
 
         $args = array(
-            'status'      => sanitize_key( $request->get_param( 'status' ) ?: '' ),
+            'status'      => sanitize_key( $request->get_param( 'license_status' ) ?: '' ),
             'product_id'  => absint( $request->get_param( 'product_id' ) ?: 0 ),
-            'type'        => sanitize_key( $request->get_param( 'type' ) ?: '' ),
+            'type'        => sanitize_key( $request->get_param( 'license_type' ) ?: '' ),
             'search'      => sanitize_text_field( $request->get_param( 'search' ) ?: '' ),
             'page'        => $page,
             'per_page'    => $per_page,
@@ -290,14 +300,99 @@ class LicenceFlow_API_V1 {
     public function get_stats( WP_REST_Request $request ): WP_REST_Response {
         $days_before = (int) LicenceFlow_Settings::get( 'lflow_alert_days_before', 7 );
 
+        $enrich = function ( array $row ): array {
+            $pid  = (int) ( $row['product_id'] ?? 0 );
+            $vid  = (int) ( $row['variation_id'] ?? 0 );
+            $p    = $pid ? wc_get_product( $pid ) : null;
+            $row['product_name']   = $p ? $p->get_name() : null;
+            $row['variation_name'] = null;
+            if ( $vid > 0 ) {
+                $v = wc_get_product( $vid );
+                if ( $v && $v->is_type( 'variation' ) ) {
+                    $row['variation_name'] = wc_get_formatted_variation( $v, true, false );
+                }
+            }
+            return $row;
+        };
+
         return new WP_REST_Response( array(
-            'by_status'        => LicenceFlow_License_DB::count_by_status(),
-            'by_type'          => LicenceFlow_License_DB::count_by_type(),
-            'by_product'       => LicenceFlow_License_DB::count_by_product( 10 ),
-            'low_stock'        => LicenceFlow_License_DB::get_low_stock_products( 5 ),
-            'expiring_soon'    => LicenceFlow_License_DB::get_expiring_soon( $days_before ),
-            'recent_deliveries' => LicenceFlow_License_DB::get_recent_deliveries( 10 ),
+            'generated_at'      => gmdate( 'c' ),
+            'by_status'         => LicenceFlow_License_DB::count_by_status(),
+            'by_type'           => LicenceFlow_License_DB::count_by_type(),
+            'by_product'        => array_map( $enrich, LicenceFlow_License_DB::count_by_product( 10 ) ),
+            'low_stock'         => array_map( $enrich, LicenceFlow_License_DB::get_low_stock_products( 5 ) ),
+            'expiring_soon'     => array_map( $enrich, LicenceFlow_License_DB::get_expiring_soon( $days_before ) ),
+            'recent_deliveries' => array_map( $enrich, LicenceFlow_License_DB::get_recent_deliveries( 10 ) ),
         ), 200 );
+    }
+
+    // ── Bulk create ───────────────────────────────────────────────────────────
+
+    public function bulk_create_licenses( WP_REST_Request $request ): WP_REST_Response {
+        $items = $request->get_param( 'licenses' );
+
+        if ( ! is_array( $items ) || empty( $items ) ) {
+            return new WP_REST_Response( array( 'code' => 'invalid_data', 'message' => 'licenses must be a non-empty array.' ), 400 );
+        }
+        if ( count( $items ) > 200 ) {
+            return new WP_REST_Response( array( 'code' => 'too_many', 'message' => 'Maximum 200 licenses per bulk request.' ), 400 );
+        }
+
+        $created = array();
+        $errors  = array();
+
+        foreach ( $items as $index => $item ) {
+            if ( ! is_array( $item ) ) {
+                $errors[] = array( 'index' => $index, 'message' => 'Item is not an object.' );
+                continue;
+            }
+
+            $raw = $item['license_key'] ?? null;
+            if ( null === $raw ) {
+                $errors[] = array( 'index' => $index, 'message' => 'license_key is required.' );
+                continue;
+            }
+
+            $type       = sanitize_key( $item['license_type'] ?? 'key' );
+            $clean      = LicenceFlow_Security::get_instance()->sanitize_license_field( $raw, $type );
+            $serialized = lflow_serialize_license_value( $clean, $type );
+            $times      = max( 1, absint( $item['delivre_x_times'] ?? 1 ) );
+
+            $data = array(
+                'product_id'                => absint( $item['product_id'] ?? 0 ),
+                'variation_id'              => absint( $item['variation_id'] ?? 0 ),
+                'license_key'               => $serialized,
+                'license_type'              => $type,
+                'license_status'            => sanitize_key( $item['license_status'] ?? 'available' ),
+                'valid'                     => absint( $item['valid'] ?? 0 ),
+                'delivre_x_times'           => $times,
+                'remaining_delivre_x_times' => $times,
+                'license_note'              => sanitize_textarea_field( $item['license_note'] ?? '' ),
+                'admin_notes'               => sanitize_textarea_field( $item['admin_notes'] ?? '' ),
+            );
+
+            $expiry = sanitize_text_field( $item['expiration_date'] ?? '' );
+            if ( $expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $expiry ) ) {
+                $data['expiration_date'] = $expiry;
+            }
+
+            $id = LicenceFlow_License_DB::insert( $data );
+            if ( ! $id ) {
+                $errors[] = array( 'index' => $index, 'message' => 'Failed to insert license.' );
+                continue;
+            }
+
+            $created[] = array( 'index' => $index, 'license_id' => $id );
+        }
+
+        // 201 if all succeeded, 207 Multi-Status if partial success/failure
+        $status_code = empty( $errors ) ? 201 : 207;
+
+        return new WP_REST_Response( array(
+            'created' => count( $created ),
+            'errors'  => $errors,
+            'items'   => $created,
+        ), $status_code );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -307,10 +402,25 @@ class LicenceFlow_API_V1 {
      * Never exposes expiration_date to the public response unless $include_key is true.
      */
     private function format_license( array $license, bool $include_key ): array {
+        $product_id   = (int) ( $license['product_id'] ?? 0 );
+        $variation_id = (int) ( $license['variation_id'] ?? 0 );
+
+        $product        = $product_id ? wc_get_product( $product_id ) : null;
+        $product_name   = $product ? $product->get_name() : null;
+        $variation_name = null;
+        if ( $variation_id > 0 ) {
+            $variation = wc_get_product( $variation_id );
+            if ( $variation && $variation->is_type( 'variation' ) ) {
+                $variation_name = wc_get_formatted_variation( $variation, true, false );
+            }
+        }
+
         $out = array(
             'license_id'                => (int) $license['license_id'],
-            'product_id'                => (int) $license['product_id'],
-            'variation_id'              => (int) $license['variation_id'],
+            'product_id'                => $product_id,
+            'product_name'              => $product_name,
+            'variation_id'              => $variation_id,
+            'variation_name'            => $variation_name,
             'license_type'              => $license['license_type'] ?? 'key',
             'license_status'            => $license['license_status'] ?? 'available',
             'owner_email_address'       => $license['owner_email_address'] ?? null,
@@ -339,9 +449,9 @@ class LicenceFlow_API_V1 {
 
     private function list_args(): array {
         return array(
-            'status'     => array( 'type' => 'string', 'default' => '' ),
-            'product_id' => array( 'type' => 'integer', 'default' => 0 ),
-            'type'       => array( 'type' => 'string', 'default' => '' ),
+            'license_status' => array( 'type' => 'string', 'default' => '' ),
+            'license_type'   => array( 'type' => 'string', 'default' => '' ),
+            'product_id'     => array( 'type' => 'integer', 'default' => 0 ),
             'search'     => array( 'type' => 'string', 'default' => '' ),
             'page'       => array( 'type' => 'integer', 'default' => 1, 'minimum' => 1 ),
             'per_page'   => array( 'type' => 'integer', 'default' => 20, 'minimum' => 1, 'maximum' => 100 ),
