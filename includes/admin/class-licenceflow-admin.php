@@ -21,6 +21,7 @@ class LicenceFlow_Admin {
         add_action( 'admin_notices',          array( $this, 'maybe_show_encryption_notice' ) );
 
         // AJAX handlers
+        add_action( 'wp_ajax_lflow_list_licenses',        array( $this, 'ajax_list_licenses' ) );
         add_action( 'wp_ajax_lflow_get_variations',       array( $this, 'ajax_get_variations' ) );
         add_action( 'wp_ajax_lflow_save_license',         array( $this, 'ajax_save_license' ) );
         add_action( 'wp_ajax_lflow_delete_license',       array( $this, 'ajax_delete_license' ) );
@@ -257,6 +258,46 @@ class LicenceFlow_Admin {
     public function render_api_docs(): void {
         LicenceFlow_Security::get_instance()->require_capability();
         require LFLOW_PATH . 'includes/admin/page-api-docs.php';
+    }
+
+    // ── AJAX: list licenses (live search / AJAX filter) ───────────────────────
+
+    /**
+     * Returns the rendered WP_List_Table HTML for the licenses page.
+     * Called by the live-search JS instead of a full page reload.
+     *
+     * POST params: s, product_id, variation_id, license_type, license_status,
+     *              orderby, order, paged
+     */
+    public function ajax_list_licenses(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        // Bridge POST → GET so WP_List_Table::prepare_items() reads the right values
+        $saved_get = $_GET;
+        $_GET = array(
+            'page'           => 'lflow-licenses',
+            's'              => sanitize_text_field( $_POST['s'] ?? '' ),
+            'product_id'     => absint( $_POST['product_id'] ?? 0 ),
+            'variation_id'   => absint( $_POST['variation_id'] ?? 0 ),
+            'license_type'   => sanitize_key( $_POST['license_type'] ?? '' ),
+            'license_status' => sanitize_key( $_POST['license_status'] ?? '' ),
+            'orderby'        => sanitize_key( $_POST['orderby'] ?? 'license_id' ),
+            'order'          => strtoupper( sanitize_key( $_POST['order'] ?? 'DESC' ) ),
+            'paged'          => max( 1, absint( $_POST['paged'] ?? 1 ) ),
+        );
+
+        require_once LFLOW_PATH . 'includes/admin/class-licenceflow-list-table.php';
+
+        ob_start();
+        $table = new LicenceFlow_List_Table();
+        $table->prepare_items();
+        $table->display();
+        $html = ob_get_clean();
+
+        $_GET = $saved_get;
+
+        wp_send_json_success( array( 'html' => $html ) );
     }
 
     // ── AJAX: get variations ──────────────────────────────────────────────────

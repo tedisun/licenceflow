@@ -15,6 +15,7 @@
             this.bindHelpToggles();
             this.bindMetaboxQuickAdd();
             this.bindFilterVariations();
+            this.bindLiveSearch();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -352,7 +353,124 @@
             });
         },
 
+        // ── Live search / AJAX filter ─────────────────────────────────────────
+
+        bindLiveSearch: function () {
+            var $form = $('#lflow-licenses-form');
+            if (!$form.length) return;
+
+            var debounce = null;
+
+            // Snapshot current filter state from the rendered form
+            var filters = {
+                s:              $('#lflow-filter-s').val()        || '',
+                product_id:     $('#lflow-filter-product').val()  || '0',
+                variation_id:   $('#lflow-filter-variation').val()|| '0',
+                license_type:   $('#lflow-filter-type').val()     || '',
+                license_status: $('#lflow-filter-status').val()   || '',
+                orderby:        'license_id',
+                order:          'DESC',
+                paged:          1
+            };
+
+            function load(extra) {
+                if (extra) { $.extend(filters, extra); }
+                var $container = $('#lflow-table-container');
+                $container.addClass('lflow-loading');
+
+                $.post(lflow_admin.ajax_url, $.extend(
+                    { action: 'lflow_list_licenses', nonce: lflow_admin.nonce },
+                    filters
+                ), function (response) {
+                    $container.removeClass('lflow-loading');
+                    if (response.success) {
+                        $container.html(response.data.html);
+                    }
+                });
+            }
+
+            // Text search — debounce 350 ms
+            $(document).on('input', '#lflow-filter-s', function () {
+                filters.s     = $(this).val();
+                filters.paged = 1;
+                clearTimeout(debounce);
+                debounce = setTimeout(load, 350);
+            });
+
+            // Selects — immediate
+            $(document).on('change', '#lflow-filter-product', function () {
+                filters.product_id   = $(this).val();
+                filters.variation_id = '0';
+                filters.paged        = 1;
+                load();
+            });
+            $(document).on('change', '#lflow-filter-variation', function () {
+                filters.variation_id = $(this).val();
+                filters.paged        = 1;
+                load();
+            });
+            $(document).on('change', '#lflow-filter-type', function () {
+                filters.license_type = $(this).val();
+                filters.paged        = 1;
+                load();
+            });
+            $(document).on('change', '#lflow-filter-status', function () {
+                filters.license_status = $(this).val();
+                filters.paged          = 1;
+                load();
+            });
+
+            // Prevent classic form submit
+            $form.on('submit', function (e) {
+                e.preventDefault();
+                load();
+            });
+
+            // Reset button
+            $(document).on('click', '.lflow-filter-reset', function (e) {
+                e.preventDefault();
+                filters = { s: '', product_id: '0', variation_id: '0', license_type: '', license_status: '', orderby: 'license_id', order: 'DESC', paged: 1 };
+                $('#lflow-filter-s').val('');
+                $('#lflow-filter-product').val('0');
+                $('#lflow-filter-variation').val('0').prop('disabled', true);
+                $('#lflow-filter-type').val('');
+                $('#lflow-filter-status').val('');
+                load();
+            });
+
+            // Intercept pagination, column-sort and status-tab links inside the table
+            $(document).on('click',
+                '#lflow-table-container .tablenav-pages a, ' +
+                '#lflow-table-container .subsubsub a, ' +
+                '#lflow-table-container th.sortable a, ' +
+                '#lflow-table-container th.sorted a',
+                function (e) {
+                    e.preventDefault();
+                    var params = LFLOW.parseQueryString($(this).attr('href') || '');
+                    load({
+                        paged:          params.paged          || 1,
+                        orderby:        params.orderby        || filters.orderby,
+                        order:          params.order          || filters.order,
+                        license_status: (params.license_status !== undefined)
+                                            ? params.license_status
+                                            : filters.license_status
+                    });
+                }
+            );
+        },
+
         // ── Utility ───────────────────────────────────────────────────────────
+
+        parseQueryString: function (url) {
+            var result = {};
+            var qs = url.indexOf('?') !== -1 ? url.split('?')[1] : '';
+            if (!qs) return result;
+            qs.split('&').forEach(function (part) {
+                var pair = part.split('=');
+                result[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+            });
+            return result;
+        },
 
         showNotice: function (message, type) {
             var $n = $('#lflow-inline-notice');

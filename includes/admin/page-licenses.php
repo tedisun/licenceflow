@@ -164,7 +164,7 @@ if ( $cur_product > 0 ) {
                 <?php submit_button( __( 'Filtrer', 'licenceflow' ), 'primary', 'filter_action', false ); ?>
                 <?php if ( $cur_search || $cur_product || $cur_type || $cur_status || $cur_variation ) : ?>
                     <a href="<?php echo esc_url( admin_url( 'admin.php?page=lflow-licenses' ) ); ?>"
-                       class="button" style="margin-left:4px;">
+                       class="button lflow-filter-reset" style="margin-left:4px;">
                         <?php esc_html_e( 'Réinitialiser', 'licenceflow' ); ?>
                     </a>
                 <?php endif; ?>
@@ -172,7 +172,9 @@ if ( $cur_product > 0 ) {
 
         </div>
 
+        <div id="lflow-table-container">
         <?php $table->display(); ?>
+        </div>
 
     </form>
 

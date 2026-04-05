@@ -2,6 +2,17 @@
    LicenceFlow — Admin styles
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* ── Live search loading state ───────────────────────────────────────────────── */
+
+#lflow-table-container {
+    transition: opacity 0.15s ease;
+}
+
+#lflow-table-container.lflow-loading {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 /* ── Layout ─────────────────────────────────────────────────────────────────── */
 
 .lflow-wrap {
