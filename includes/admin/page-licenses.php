@@ -104,7 +104,7 @@ if ( $cur_product > 0 ) {
                 <label for="lflow-filter-product" style="display:block; font-size:12px; color:#646970; margin-bottom:3px;">
                     <?php esc_html_e( 'Produit', 'licenceflow' ); ?>
                 </label>
-                <select id="lflow-filter-product" name="product_id" style="min-width:180px;">
+                <select id="lflow-filter-product" name="product_id" class="lflow-product-select" style="min-width:180px;">
                     <option value="0"><?php esc_html_e( '— Tous les produits —', 'licenceflow' ); ?></option>
                     <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                         <option value="<?php echo esc_attr( $pid ); ?>" <?php selected( $cur_product, $pid ); ?>>

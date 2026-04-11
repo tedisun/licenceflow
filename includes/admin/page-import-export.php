@@ -288,7 +288,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <tr>
                         <th><label for="txt_product_id"><?php esc_html_e( 'Produit', 'licenceflow' ); ?></label></th>
                         <td>
-                            <select id="txt_product_id" name="txt_product_id" required>
+                            <select id="txt_product_id" name="txt_product_id" class="lflow-product-select" required>
                                 <option value="0"><?php esc_html_e( '— Sélectionner un produit —', 'licenceflow' ); ?></option>
                                 <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                                     <option value="<?php echo esc_attr( $pid ); ?>"><?php echo esc_html( $pname ); ?></option>
@@ -376,7 +376,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <tr>
                         <th><label><?php esc_html_e( 'Produit', 'licenceflow' ); ?></label></th>
                         <td>
-                            <select name="export_product_id">
+                            <select name="export_product_id" class="lflow-product-select">
                                 <option value="0"><?php esc_html_e( 'Tous', 'licenceflow' ); ?></option>
                                 <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                                     <option value="<?php echo esc_attr( $pid ); ?>"><?php echo esc_html( $pname ); ?></option>
@@ -426,7 +426,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <tr>
                         <th><label><?php esc_html_e( 'Produit cible', 'licenceflow' ); ?></label></th>
                         <td>
-                            <select name="import_product_id">
+                            <select name="import_product_id" class="lflow-product-select">
                                 <option value="0"><?php esc_html_e( '— Aucun (voir CSV) —', 'licenceflow' ); ?></option>
                                 <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                                     <option value="<?php echo esc_attr( $pid ); ?>"><?php echo esc_html( $pname ); ?></option>

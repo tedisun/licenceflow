@@ -94,7 +94,10 @@
   ],
   "examples": {
     "list_available": "GET /licenses?status=available&per_page=10",
+    "create_key_license": "POST /licenses {\"product_id\": 42, \"license_type\": \"key\", \"license_key\": \"XXXX-YYYY-ZZZZ-AAAA\"}",
     "create_account_license": "POST /licenses {\"product_id\": 42, \"license_type\": \"account\", \"license_key\": {\"username\": \"user@example.com\", \"password\": \"secret\"}}",
+    "create_link_license": "POST /licenses {\"product_id\": 42, \"license_type\": \"link\", \"license_key\": {\"url\": \"https://example.com/activate?token=abc123\", \"label\": \"Cliquer pour activer\"}}",
+    "create_code_license": "POST /licenses {\"product_id\": 42, \"license_type\": \"code\", \"license_key\": {\"code\": \"ABC-123\", \"note\": \"Utiliser sur le site partenaire\"}}",
     "get_stats": "GET /stats",
     "deliver_to_order": "POST /licenses/15/deliver {\"order_id\": 1234}"
   }

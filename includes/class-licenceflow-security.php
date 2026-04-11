@@ -78,20 +78,45 @@ class LicenceFlow_Security {
      * @return string|array
      */
     public function sanitize_license_field( $data, string $type ) {
+        // For structured types, accept a JSON-encoded string (e.g. from MCP/API clients
+        // that serialise the object before sending it).
+        if ( $type !== 'key' && is_string( $data ) ) {
+            $decoded = json_decode( $data, true );
+            if ( is_array( $decoded ) ) {
+                $data = $decoded;
+            }
+        }
+
         switch ( $type ) {
             case 'account':
+                if ( ! is_array( $data ) ) {
+                    return array( 'username' => '', 'password' => '' );
+                }
                 return array(
                     'username' => sanitize_text_field( $data['username'] ?? '' ),
                     'password' => sanitize_text_field( $data['password'] ?? '' ),
                 );
 
             case 'link':
+                // Accept either an array {url, label} or a bare URL string.
+                if ( ! is_array( $data ) ) {
+                    return array(
+                        'url'   => esc_url_raw( is_string( $data ) ? $data : '' ),
+                        'label' => '',
+                    );
+                }
                 return array(
                     'url'   => esc_url_raw( $data['url'] ?? '' ),
                     'label' => sanitize_text_field( $data['label'] ?? '' ),
                 );
 
             case 'code':
+                if ( ! is_array( $data ) ) {
+                    return array(
+                        'code' => sanitize_text_field( is_string( $data ) ? $data : '' ),
+                        'note' => '',
+                    );
+                }
                 return array(
                     'code' => sanitize_text_field( $data['code'] ?? '' ),
                     'note' => sanitize_textarea_field( $data['note'] ?? '' ),

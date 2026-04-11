@@ -491,6 +491,173 @@
     color: #1d2327;
 }
 
+/* ── Searchable select (lflow-ss) ────────────────────────────────────────────── */
+
+.lflow-ss-wrap {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* The real <select> is kept in the DOM for form submission but is invisible */
+.lflow-ss-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Visible trigger button */
+.lflow-ss-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 200px;
+    padding: 5px 10px 5px 12px;
+    background: #fff;
+    border: 1px solid #8c8f94;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #2c3338;
+    box-shadow: 0 1px 2px rgba(0,0,0,.07);
+    user-select: none;
+    transition: border-color .1s, box-shadow .1s;
+}
+
+.lflow-ss-trigger:hover {
+    border-color: #2271b1;
+}
+
+.lflow-ss-trigger:focus {
+    outline: none;
+    border-color: #2271b1;
+    box-shadow: 0 0 0 2px rgba(34,113,177,.2);
+}
+
+.lflow-ss-wrap.lflow-ss-open .lflow-ss-trigger {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 2px rgba(34,113,177,.2);
+}
+
+.lflow-ss-display {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Arrow icon */
+.lflow-ss-arrow {
+    flex-shrink: 0;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #646970;
+    transition: transform .15s;
+}
+
+.lflow-ss-wrap.lflow-ss-open .lflow-ss-arrow {
+    transform: rotate(180deg);
+}
+
+/* Dropdown panel */
+.lflow-ss-panel {
+    display: none;
+    position: absolute;
+    z-index: 99999;
+    top: calc(100% + 2px);
+    left: 0;
+    min-width: 100%;
+    max-width: 360px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.15);
+    overflow: hidden;
+}
+
+/* Search input wrapper */
+.lflow-ss-search-wrap {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f1;
+    background: #f6f7f7;
+}
+
+.lflow-ss-search {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 5px 8px;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    font-size: 12px;
+    line-height: 1.5;
+    background: #fff;
+    color: #2c3338;
+    outline: none;
+}
+
+.lflow-ss-search:focus {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* Options list */
+.lflow-ss-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.lflow-ss-list li {
+    padding: 7px 12px;
+    font-size: 13px;
+    color: #2c3338;
+    cursor: pointer;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    outline: none;
+}
+
+.lflow-ss-list li:hover,
+.lflow-ss-list li:focus {
+    background: #f0f6fc;
+    color: #135e96;
+}
+
+.lflow-ss-list li.lflow-ss-selected {
+    background: #2271b1;
+    color: #fff;
+    font-weight: 600;
+}
+
+.lflow-ss-list li.lflow-ss-selected:hover,
+.lflow-ss-list li.lflow-ss-selected:focus {
+    background: #135e96;
+    color: #fff;
+}
+
+.lflow-ss-list li.lflow-ss-no-results {
+    color: #8c8f94;
+    font-style: italic;
+    cursor: default;
+}
+
+.lflow-ss-list li.lflow-ss-no-results:hover {
+    background: none;
+    color: #8c8f94;
+}
+
 /* ── Misc ────────────────────────────────────────────────────────────────────── */
 
 .lflow-notice-inline {

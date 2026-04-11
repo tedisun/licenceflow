@@ -16,6 +16,7 @@
             this.bindMetaboxQuickAdd();
             this.bindFilterVariations();
             this.bindLiveSearch();
+            this.initSearchableSelects();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -97,13 +98,11 @@
 
             var $tabs = $nav.find('a');
 
-            // Switch to a tab pane without page reload
             function activateTab(slug) {
                 $tabs.removeClass('active');
                 $tabs.filter('[data-tab="' + slug + '"]').addClass('active');
                 $('.lflow-settings-tab-pane').hide();
                 $('#lflow-tab-' + slug).show();
-                // Keep the URL in sync so a save redirects back to the right tab
                 var href = $tabs.filter('[data-tab="' + slug + '"]').attr('href');
                 if (href) { history.replaceState(null, '', href); }
             }
@@ -113,7 +112,6 @@
                 activateTab($(this).data('tab'));
             });
 
-            // Activate the tab matching the current ?tab= URL param
             var activeTab = $nav.data('active-tab') || $tabs.first().data('tab');
             activateTab(activeTab);
         },
@@ -195,7 +193,6 @@
                     $btn.text('✓');
                     setTimeout(function () { $btn.text('⧉'); }, 1500);
                 }).catch(function () {
-                    // Fallback for older browsers
                     var $tmp = $('<textarea>').val(text).appendTo('body').select();
                     document.execCommand('copy');
                     $tmp.remove();
@@ -206,8 +203,6 @@
             });
         },
 
-        // ── Metabox quick-add ─────────────────────────────────────────────────
-
         // ── Help toggles ──────────────────────────────────────────────────────
 
         bindHelpToggles: function () {
@@ -216,7 +211,6 @@
                 var $btn  = $(this);
                 var $text = $btn.next('.lflow-help-text');
                 var open  = $text.hasClass('visible');
-                // Close all other open helps
                 $('.lflow-help-text.visible').removeClass('visible');
                 $('.lflow-help-btn.active').removeClass('active');
                 if (!open) {
@@ -226,8 +220,9 @@
             });
         },
 
+        // ── Metabox quick-add ─────────────────────────────────────────────────
+
         bindMetaboxQuickAdd: function () {
-            // Toggle the quick-add form
             $(document).on('click', '#lflow-quick-add-toggle', function (e) {
                 e.preventDefault();
                 $('#lflow-quick-add-form').slideToggle(200, function () {
@@ -237,7 +232,6 @@
                 });
             });
 
-            // When variation changes: update license type + default_valid
             $(document).on('change', '#lflow-qa-variation', function () {
                 var pid = $('#lflow-quick-add-form [name="product_id"]').val();
                 var vid = $(this).val() || 0;
@@ -258,7 +252,6 @@
                 });
             });
 
-            // Submit quick-add form
             $(document).on('submit', '#lflow-quick-add-form form', function (e) {
                 e.preventDefault();
                 var $form   = $(this);
@@ -275,7 +268,6 @@
                     return;
                 }
 
-                // Parse || for display only (server handles the actual split)
                 var displayVal = rawVal.indexOf('||') !== -1 ? $.trim(rawVal.split('||')[0]) : rawVal;
                 var shortKey   = displayVal.length > 30 ? displayVal.substring(0, 28) + '…' : displayVal;
 
@@ -297,7 +289,6 @@
                     if (response.success) {
                         var id     = response.data.license_id;
                         var $tbody = $('#lflow-quick-licenses-tbody');
-                        // Remove "no licenses" placeholder row if present
                         $tbody.find('#lflow-no-licenses-row').remove();
                         $tbody.prepend(
                             '<tr>' +
@@ -307,10 +298,8 @@
                             '<td>—</td>' +
                             '</tr>'
                         );
-                        // Increment available count
                         var $count = $('#lflow-quick-available-count');
                         $count.text(parseInt($count.text() || 0) + 1);
-                        // Reset value field only, keep other fields for chaining
                         $form.find('[name="license_value[key]"]').val('').focus();
                         LFLOW.showNotice('Licence #' + id + ' ajoutée.', 'success');
                     } else {
@@ -320,16 +309,19 @@
             });
         },
 
-        // ── Filter: dynamic variations ────────────────────────────────────
+        // ── Filter: dynamic variations (no auto-fetch) ────────────────────────
 
         bindFilterVariations: function () {
             var $product = $('#lflow-filter-product');
             if (!$product.length) return;
 
+            // When product changes: populate variations, but do NOT fetch the table.
+            // The user must click "Filtrer" to apply.
             $product.on('change', function () {
                 var pid = $(this).val();
                 var $variation = $('#lflow-filter-variation');
                 $variation.find('option:not(:first)').remove();
+                $variation.val('0');
 
                 if (!pid || pid === '0') {
                     $variation.prop('disabled', true);
@@ -354,34 +346,46 @@
         },
 
         // ── Live search / AJAX filter ─────────────────────────────────────────
+        //
+        // Only auto-fetches on text search (debounced).
+        // Product / variation / type / status selects update their value in the
+        // DOM but do NOT trigger a fetch — the user must click "Filtrer".
 
         bindLiveSearch: function () {
             var $form = $('#lflow-licenses-form');
             if (!$form.length) return;
 
-            var debounce = null;
+            var debounce    = null;
+            var currentOrderby = 'license_id';
+            var currentOrder   = 'DESC';
+            var currentPaged   = 1;
 
-            // Snapshot current filter state from the rendered form
-            var filters = {
-                s:              $('#lflow-filter-s').val()        || '',
-                product_id:     $('#lflow-filter-product').val()  || '0',
-                variation_id:   $('#lflow-filter-variation').val()|| '0',
-                license_type:   $('#lflow-filter-type').val()     || '',
-                license_status: $('#lflow-filter-status').val()   || '',
-                orderby:        'license_id',
-                order:          'DESC',
-                paged:          1
-            };
+            // Read all current filter values from the DOM at the moment of loading.
+            function getParams(extra) {
+                return $.extend({
+                    action:         'lflow_list_licenses',
+                    nonce:          lflow_admin.nonce,
+                    s:              $('#lflow-filter-s').val()          || '',
+                    product_id:     $('#lflow-filter-product').val()    || '0',
+                    variation_id:   $('#lflow-filter-variation').val()  || '0',
+                    license_type:   $('#lflow-filter-type').val()       || '',
+                    license_status: $('#lflow-filter-status').val()     || '',
+                    orderby:        currentOrderby,
+                    order:          currentOrder,
+                    paged:          currentPaged
+                }, extra || {});
+            }
 
             function load(extra) {
-                if (extra) { $.extend(filters, extra); }
+                var params = getParams(extra);
+                currentOrderby = params.orderby;
+                currentOrder   = params.order;
+                currentPaged   = params.paged;
+
                 var $container = $('#lflow-table-container');
                 $container.addClass('lflow-loading');
 
-                $.post(lflow_admin.ajax_url, $.extend(
-                    { action: 'lflow_list_licenses', nonce: lflow_admin.nonce },
-                    filters
-                ), function (response) {
+                $.post(lflow_admin.ajax_url, params, function (response) {
                     $container.removeClass('lflow-loading');
                     if (response.success) {
                         $container.html(response.data.html);
@@ -389,52 +393,34 @@
                 });
             }
 
-            // Text search — debounce 350 ms
+            // Text search — debounce 350 ms (immediate feedback expected)
             $(document).on('input', '#lflow-filter-s', function () {
-                filters.s     = $(this).val();
-                filters.paged = 1;
+                currentPaged = 1;
                 clearTimeout(debounce);
                 debounce = setTimeout(load, 350);
             });
 
-            // Selects — immediate
-            $(document).on('change', '#lflow-filter-product', function () {
-                filters.product_id   = $(this).val();
-                filters.variation_id = '0';
-                filters.paged        = 1;
-                load();
-            });
-            $(document).on('change', '#lflow-filter-variation', function () {
-                filters.variation_id = $(this).val();
-                filters.paged        = 1;
-                load();
-            });
-            $(document).on('change', '#lflow-filter-type', function () {
-                filters.license_type = $(this).val();
-                filters.paged        = 1;
-                load();
-            });
-            $(document).on('change', '#lflow-filter-status', function () {
-                filters.license_status = $(this).val();
-                filters.paged          = 1;
-                load();
-            });
-
-            // Prevent classic form submit
+            // "Filtrer" button / form submit
             $form.on('submit', function (e) {
                 e.preventDefault();
+                currentPaged = 1;
                 load();
             });
 
             // Reset button
             $(document).on('click', '.lflow-filter-reset', function (e) {
                 e.preventDefault();
-                filters = { s: '', product_id: '0', variation_id: '0', license_type: '', license_status: '', orderby: 'license_id', order: 'DESC', paged: 1 };
+                currentOrderby = 'license_id';
+                currentOrder   = 'DESC';
+                currentPaged   = 1;
+
                 $('#lflow-filter-s').val('');
-                $('#lflow-filter-product').val('0');
+                // Reset the product searchable select (fires change → clears variations)
+                $('#lflow-filter-product').val('0').trigger('change').trigger('lflow:ss:sync');
                 $('#lflow-filter-variation').val('0').prop('disabled', true);
                 $('#lflow-filter-type').val('');
                 $('#lflow-filter-status').val('');
+
                 load();
             });
 
@@ -449,14 +435,202 @@
                     var params = LFLOW.parseQueryString($(this).attr('href') || '');
                     load({
                         paged:          params.paged          || 1,
-                        orderby:        params.orderby        || filters.orderby,
-                        order:          params.order          || filters.order,
+                        orderby:        params.orderby        || currentOrderby,
+                        order:          params.order          || currentOrder,
                         license_status: (params.license_status !== undefined)
                                             ? params.license_status
-                                            : filters.license_status
+                                            : $('#lflow-filter-status').val() || ''
                     });
                 }
             );
+        },
+
+        // ── Searchable select ─────────────────────────────────────────────────
+        //
+        // Transforms any <select class="lflow-product-select"> into a searchable
+        // custom dropdown. The original <select> stays hidden and keeps its name
+        // so form submission continues to work normally.
+
+        initSearchableSelects: function () {
+            var self = this;
+
+            $('.lflow-product-select').each(function () {
+                self._buildSearchableSelect($(this));
+            });
+
+            // Close any open panel when clicking outside
+            $(document).on('click', function (e) {
+                if (!$(e.target).closest('.lflow-ss-wrap').length) {
+                    self._closeAll();
+                }
+            });
+        },
+
+        _buildSearchableSelect: function ($select) {
+            if ($select.data('lflow-ss')) return; // already initialised
+            $select.data('lflow-ss', true);
+
+            // Collect options
+            var options = [];
+            $select.find('option').each(function () {
+                options.push({ value: $(this).val(), label: $(this).text().trim() });
+            });
+
+            var $wrap = $('<div class="lflow-ss-wrap"></div>');
+            var $trigger = $(
+                '<div class="lflow-ss-trigger" tabindex="0" role="combobox" aria-haspopup="listbox">' +
+                    '<span class="lflow-ss-display"></span>' +
+                    '<span class="lflow-ss-arrow"></span>' +
+                '</div>'
+            );
+            var $panel = $(
+                '<div class="lflow-ss-panel" role="listbox">' +
+                    '<div class="lflow-ss-search-wrap">' +
+                        '<input type="text" class="lflow-ss-search" placeholder="Rechercher…" autocomplete="off" spellcheck="false">' +
+                    '</div>' +
+                    '<ul class="lflow-ss-list"></ul>' +
+                '</div>'
+            );
+
+            // Transfer min-width from the original select to the trigger
+            var origMinWidth = $select[0].style.minWidth;
+            if (origMinWidth) {
+                $trigger.css('min-width', origMinWidth);
+                $panel.css('min-width', origMinWidth);
+            }
+
+            // Insert the wrapper right after the select, then hide the select
+            $select.after($wrap);
+            $wrap.append($select).append($trigger).append($panel);
+            $select.addClass('lflow-ss-hidden');
+
+            // ── Helpers ───────────────────────────────────────────────────────
+
+            function getSelectedLabel() {
+                var val = $select.val();
+                for (var i = 0; i < options.length; i++) {
+                    if (String(options[i].value) === String(val)) {
+                        return options[i].label;
+                    }
+                }
+                return options.length ? options[0].label : '';
+            }
+
+            function refreshDisplay() {
+                $trigger.find('.lflow-ss-display').text(getSelectedLabel());
+            }
+
+            function buildList(search) {
+                var $list = $panel.find('.lflow-ss-list');
+                $list.empty();
+                var term  = (search || '').toLowerCase();
+                var curVal = String($select.val());
+                var count = 0;
+
+                options.forEach(function (opt) {
+                    if (term && opt.label.toLowerCase().indexOf(term) === -1) return;
+                    var $li = $('<li></li>')
+                        .attr('data-value', opt.value)
+                        .text(opt.label)
+                        .attr('role', 'option');
+                    if (String(opt.value) === curVal) {
+                        $li.addClass('lflow-ss-selected');
+                    }
+                    $list.append($li);
+                    count++;
+                });
+
+                if (count === 0) {
+                    $list.append('<li class="lflow-ss-no-results">Aucun résultat</li>');
+                }
+            }
+
+            function openPanel() {
+                LFLOW._closeAll();
+                buildList('');
+                $panel.find('.lflow-ss-search').val('');
+                $wrap.addClass('lflow-ss-open');
+                $panel.show();
+
+                // Scroll selected item into view
+                var $sel = $panel.find('.lflow-ss-selected');
+                if ($sel.length) {
+                    var list = $panel.find('.lflow-ss-list')[0];
+                    list.scrollTop = Math.max(0, $sel[0].offsetTop - 60);
+                }
+
+                $panel.find('.lflow-ss-search').focus();
+            }
+
+            function closePanel() {
+                $wrap.removeClass('lflow-ss-open');
+                $panel.hide();
+            }
+
+            function selectOption(value, label) {
+                $select.val(value).trigger('change'); // propagate to existing handlers
+                refreshDisplay();
+                closePanel();
+            }
+
+            // ── Events ────────────────────────────────────────────────────────
+
+            $trigger.on('click', function (e) {
+                e.stopPropagation();
+                $wrap.hasClass('lflow-ss-open') ? closePanel() : openPanel();
+            });
+
+            $trigger.on('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPanel(); }
+                if (e.key === 'Escape')                  { closePanel(); }
+            });
+
+            $panel.on('input', '.lflow-ss-search', function () {
+                buildList($(this).val());
+            });
+
+            $panel.on('keydown', '.lflow-ss-search', function (e) {
+                if (e.key === 'Escape') { closePanel(); $trigger.focus(); }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    $panel.find('.lflow-ss-list li:not(.lflow-ss-no-results)').first().focus();
+                }
+            });
+
+            $panel.on('click', '.lflow-ss-list li:not(.lflow-ss-no-results)', function () {
+                selectOption($(this).attr('data-value'), $(this).text());
+            });
+
+            $panel.on('keydown', '.lflow-ss-list li', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectOption($(this).attr('data-value'), $(this).text());
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    $(this).next('li').focus();
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var $prev = $(this).prev('li');
+                    if ($prev.length) { $prev.focus(); } else { $panel.find('.lflow-ss-search').focus(); }
+                }
+                if (e.key === 'Escape') { closePanel(); $trigger.focus(); }
+            });
+
+            // External sync: when something sets $select.val() programmatically,
+            // fire  $select.trigger('lflow:ss:sync')  to update the display label.
+            $select.on('lflow:ss:sync', function () {
+                refreshDisplay();
+            });
+
+            // ── Init display ──────────────────────────────────────────────────
+            refreshDisplay();
+        },
+
+        _closeAll: function () {
+            $('.lflow-ss-wrap.lflow-ss-open').removeClass('lflow-ss-open')
+                .find('.lflow-ss-panel').hide();
         },
 
         // ── Utility ───────────────────────────────────────────────────────────

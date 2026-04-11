@@ -130,7 +130,7 @@ $variations        = LicenceFlow_Product_Config::get_variation_options( (int) $l
                 <tr>
                     <th><label for="lflow-product-id"><?php esc_html_e( 'Produit', 'licenceflow' ); ?></label></th>
                     <td>
-                        <select id="lflow-product-id" name="product_id" style="min-width:280px;">
+                        <select id="lflow-product-id" name="product_id" class="lflow-product-select" style="min-width:280px;">
                             <option value=""><?php esc_html_e( '— Sélectionner —', 'licenceflow' ); ?></option>
                             <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                                 <option value="<?php echo esc_attr( $pid ); ?>" <?php selected( (int) $license['product_id'], $pid ); ?>>

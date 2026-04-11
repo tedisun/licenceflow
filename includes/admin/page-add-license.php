@@ -85,7 +85,7 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                 <tr>
                     <th><label for="lflow-product-id"><?php esc_html_e( 'Produit', 'licenceflow' ); ?> <span class="required">*</span></label></th>
                     <td>
-                        <select id="lflow-product-id" name="product_id" required style="min-width:280px;">
+                        <select id="lflow-product-id" name="product_id" class="lflow-product-select" required style="min-width:280px;">
                             <option value=""><?php esc_html_e( '— Sélectionner un produit —', 'licenceflow' ); ?></option>
                             <?php foreach ( $licensed_products as $pid => $pname ) : ?>
                                 <option value="<?php echo esc_attr( $pid ); ?>"><?php echo esc_html( $pname ); ?></option>
