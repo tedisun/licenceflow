@@ -49,7 +49,7 @@ class LicenceFlow_API_V1 {
                 'callback'            => array( $this, 'get_license' ),
                 'permission_callback' => array( $this, 'check_api_key' ),
                 'args'                => array(
-                    'id'          => array( 'required' => true, 'validate_callback' => 'is_numeric' ),
+                    'id'          => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ),
                     'include_key' => array( 'default' => false, 'type' => 'boolean' ),
                 ),
             ),
@@ -58,7 +58,7 @@ class LicenceFlow_API_V1 {
                 'callback'            => array( $this, 'update_license' ),
                 'permission_callback' => array( $this, 'check_api_key' ),
                 'args'                => array_merge(
-                    array( 'id' => array( 'required' => true, 'validate_callback' => 'is_numeric' ) ),
+                    array( 'id' => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ) ),
                     $this->create_args( false )
                 ),
             ),
@@ -67,7 +67,7 @@ class LicenceFlow_API_V1 {
                 'callback'            => array( $this, 'delete_license' ),
                 'permission_callback' => array( $this, 'check_api_key' ),
                 'args'                => array(
-                    'id' => array( 'required' => true, 'validate_callback' => 'is_numeric' ),
+                    'id' => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ),
                 ),
             ),
         ) );
@@ -78,7 +78,7 @@ class LicenceFlow_API_V1 {
             'callback'            => array( $this, 'deliver_license' ),
             'permission_callback' => array( $this, 'check_api_key' ),
             'args'                => array(
-                'id'       => array( 'required' => true, 'validate_callback' => 'is_numeric' ),
+                'id'       => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ),
                 'order_id' => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ),
             ),
         ) );
@@ -211,6 +211,14 @@ class LicenceFlow_API_V1 {
         if ( null !== $request->get_param( 'expiration_date' ) ) {
             $expiry = sanitize_text_field( $request->get_param( 'expiration_date' ) );
             $data['expiration_date'] = ( $expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $expiry ) ) ? $expiry : null;
+        }
+        if ( null !== $request->get_param( 'delivre_x_times' ) ) {
+            $times = max( 1, absint( $request->get_param( 'delivre_x_times' ) ) );
+            $data['delivre_x_times'] = $times;
+        }
+        if ( null !== $request->get_param( 'remaining_delivre_x_times' ) ) {
+            $max   = isset( $data['delivre_x_times'] ) ? $data['delivre_x_times'] : (int) ( $license['delivre_x_times'] ?? 1 );
+            $data['remaining_delivre_x_times'] = min( max( 0, absint( $request->get_param( 'remaining_delivre_x_times' ) ) ), $max );
         }
         if ( null !== $request->get_param( 'license_key' ) ) {
             $type  = sanitize_key( $request->get_param( 'license_type' ) ?: ( $license['license_type'] ?? 'key' ) );
