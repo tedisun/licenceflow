@@ -16,6 +16,7 @@
             this.bindMetaboxQuickAdd();
             this.bindFilterVariations();
             this.bindLiveSearch();
+            this.bindTxtImport();
             this.initSearchableSelects();
         },
 
@@ -221,70 +222,99 @@
         },
 
         // ── Metabox quick-add ─────────────────────────────────────────────────
+        //
+        // The quick-add block is a <div>, NOT a <form> — the product edit page
+        // already wraps everything in a WP <form>. Nested forms are invalid HTML
+        // and cause the outer WP form to submit instead. The button uses
+        // type="button"; everything is sent via AJAX.
 
         bindMetaboxQuickAdd: function () {
+
+            // Toggle visibility
             $(document).on('click', '#lflow-quick-add-toggle', function (e) {
                 e.preventDefault();
                 $('#lflow-quick-add-form').slideToggle(200, function () {
                     if ($('#lflow-quick-add-form').is(':visible')) {
-                        $('#lflow-qa-value').focus();
+                        LFLOW._qaFocusPrimary();
                     }
                 });
             });
 
+            // Variation change: reload license type + default_valid, swap fields
             $(document).on('change', '#lflow-qa-variation', function () {
-                var pid = $('#lflow-quick-add-form [name="product_id"]').val();
-                var vid = $(this).val() || 0;
+                var $wrap = $(this).closest('#lflow-quick-add-form');
+                var pid   = $wrap.find('[name="qa_product_id"]').val();
+                var vid   = $(this).val() || 0;
                 if (!pid) return;
                 $.post(lflow_admin.ajax_url, {
-                    action: 'lflow_get_variations',
-                    nonce: lflow_admin.nonce,
-                    product_id: pid,
+                    action:       'lflow_get_variations',
+                    nonce:        lflow_admin.nonce,
+                    product_id:   pid,
                     variation_id: vid
                 }, function (response) {
                     if (!response.success) return;
                     if (response.data.license_type) {
-                        $('#lflow-qa-type').val(response.data.license_type);
+                        $wrap.find('#lflow-qa-type').val(response.data.license_type);
+                        LFLOW._qaShowFields(response.data.license_type, $wrap);
                     }
                     if (typeof response.data.default_valid !== 'undefined') {
-                        $('#lflow-qa-valid').val(response.data.default_valid);
+                        $wrap.find('#lflow-qa-valid').val(response.data.default_valid);
                     }
                 });
             });
 
-            $(document).on('submit', '#lflow-quick-add-form form', function (e) {
+            // Click handler on the "Ajouter" button (type="button", not submit)
+            $(document).on('click', '.lflow-quick-add-submit', function (e) {
                 e.preventDefault();
-                var $form   = $(this);
-                var $btn    = $form.find('.lflow-quick-add-submit');
-                var pid     = $form.find('[name="product_id"]').val();
-                var type    = $form.find('#lflow-qa-type').val() || 'key';
-                var rawVal  = $.trim($form.find('[name="license_value[key]"]').val());
-                var varId   = $form.find('[name="variation_id"]').val() || 0;
-                var delivre = parseInt($form.find('[name="delivre_x_times"]').val()) || 1;
-                var valid   = parseInt($form.find('[name="valid"]').val()) || 0;
+                var $btn    = $(this);
+                var $wrap   = $btn.closest('#lflow-quick-add-form');
+                var pid     = $wrap.find('[name="qa_product_id"]').val();
+                var type    = $wrap.find('#lflow-qa-type').val() || 'key';
+                var varId   = $wrap.find('[name="variation_id"]').val() || 0;
+                var delivre = parseInt($wrap.find('[name="delivre_x_times"]').val()) || 1;
+                var valid   = parseInt($wrap.find('[name="valid"]').val()) || 0;
 
-                if (!rawVal) {
-                    $form.find('[name="license_value[key]"]').focus();
-                    return;
+                var postData = {
+                    action:          'lflow_save_license',
+                    nonce:           lflow_admin.nonce,
+                    license_id:      0,
+                    product_id:      pid,
+                    variation_id:    varId,
+                    license_type:    type,
+                    license_status:  'available',
+                    delivre_x_times: delivre,
+                    valid:           valid
+                };
+
+                var displayVal = '';
+
+                if (type === 'key' || type === 'code') {
+                    var rawVal = $.trim($wrap.find('[name="license_value[key]"]').val());
+                    if (!rawVal) { $wrap.find('[name="license_value[key]"]').focus(); return; }
+                    postData['license_value[key]'] = rawVal;
+                    displayVal = rawVal.indexOf('||') !== -1 ? $.trim(rawVal.split('||')[0]) : rawVal;
+
+                } else if (type === 'account') {
+                    var user = $.trim($wrap.find('[name="license_value[username]"]').val());
+                    var pass = $.trim($wrap.find('[name="license_value[password]"]').val());
+                    if (!user) { $wrap.find('[name="license_value[username]"]').focus(); return; }
+                    postData['license_value[username]'] = user;
+                    postData['license_value[password]'] = pass;
+                    displayVal = user;
+
+                } else if (type === 'link') {
+                    var url   = $.trim($wrap.find('[name="license_value[url]"]').val());
+                    var label = $.trim($wrap.find('[name="license_value[label]"]').val());
+                    if (!url) { $wrap.find('[name="license_value[url]"]').focus(); return; }
+                    postData['license_value[url]']   = url;
+                    postData['license_value[label]'] = label;
+                    displayVal = label || url;
                 }
 
-                var displayVal = rawVal.indexOf('||') !== -1 ? $.trim(rawVal.split('||')[0]) : rawVal;
-                var shortKey   = displayVal.length > 30 ? displayVal.substring(0, 28) + '…' : displayVal;
-
+                var shortKey = displayVal.length > 30 ? displayVal.substring(0, 28) + '…' : displayVal;
                 $btn.prop('disabled', true).text('…');
 
-                $.post(lflow_admin.ajax_url, {
-                    action:              'lflow_save_license',
-                    nonce:               lflow_admin.nonce,
-                    license_id:          0,
-                    product_id:          pid,
-                    variation_id:        varId,
-                    license_type:        type,
-                    'license_value[key]': rawVal,
-                    license_status:      'available',
-                    delivre_x_times:     delivre,
-                    valid:               valid
-                }, function (response) {
+                $.post(lflow_admin.ajax_url, postData, function (response) {
                     $btn.prop('disabled', false).text('+ Ajouter');
                     if (response.success) {
                         var id     = response.data.license_id;
@@ -300,11 +330,127 @@
                         );
                         var $count = $('#lflow-quick-available-count');
                         $count.text(parseInt($count.text() || 0) + 1);
-                        $form.find('[name="license_value[key]"]').val('').focus();
+                        $wrap.find('[name="license_value[key]"], [name="license_value[username]"], ' +
+                                   '[name="license_value[password]"], [name="license_value[url]"], ' +
+                                   '[name="license_value[label]"]').val('');
+                        LFLOW._qaFocusPrimary();
                         LFLOW.showNotice('Licence #' + id + ' ajoutée.', 'success');
                     } else {
                         alert(response.data.message || lflow_admin.i18n.error);
                     }
+                });
+            });
+        },
+
+        // Focus the primary input based on current type
+        _qaFocusPrimary: function () {
+            var type = $('#lflow-qa-type').val() || 'key';
+            if (type === 'account') {
+                $('#lflow-qa-username').focus();
+            } else if (type === 'link') {
+                $('#lflow-qa-url').focus();
+            } else {
+                $('#lflow-qa-value').focus();
+            }
+        },
+
+        // Show the right field rows when the license type changes
+        _qaShowFields: function (type, $wrap) {
+            $wrap = $wrap || $('#lflow-quick-add-form');
+            $wrap.find('.lflow-qa-field').hide();
+            $wrap.find('.lflow-qa-field-' + type).show();
+        },
+
+        // ── Import TXT modal ──────────────────────────────────────────────────
+
+        bindTxtImport: function () {
+            var self = this;
+
+            $(document).on('click', '#lflow-txt-import-btn', function (e) {
+                e.preventDefault();
+                $('#lflow-txt-import-modal').show();
+                var $sel = $('#lflow-txt-import-product');
+                if (!$sel.data('lflow-ss')) { self._buildSearchableSelect($sel); }
+            });
+
+            $(document).on('click', '.lflow-txt-import-close, #lflow-txt-import-backdrop', function () {
+                $('#lflow-txt-import-modal').hide();
+            });
+
+            // Product change: load variations + detect license type
+            $(document).on('change', '#lflow-txt-import-product', function () {
+                var pid     = $(this).val();
+                var $varRow = $('#lflow-txt-import-var-row');
+                var $varSel = $('#lflow-txt-import-variation');
+                $varSel.find('option:not(:first)').remove().end().val('0');
+
+                if (!pid || pid === '0') { $varRow.hide(); $('#lflow-txt-import-type').val('key'); return; }
+
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_get_variations', nonce: lflow_admin.nonce, product_id: pid
+                }, function (response) {
+                    if (!response.success) return;
+                    if (response.data.variations && response.data.variations.length) {
+                        response.data.variations.forEach(function (v) {
+                            $varSel.append('<option value="' + v.id + '">' + v.label + '</option>');
+                        });
+                        $varRow.show();
+                    } else {
+                        $varRow.hide();
+                    }
+                    if (response.data.license_type) { $('#lflow-txt-import-type').val(response.data.license_type); }
+                });
+            });
+
+            // File → populate textarea
+            $(document).on('change', '#lflow-txt-import-file', function () {
+                var file = this.files && this.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function (ev) { $('#lflow-txt-import-lines').val(ev.target.result).trigger('input'); };
+                reader.readAsText(file);
+            });
+
+            // Live line count
+            $(document).on('input', '#lflow-txt-import-lines', function () {
+                var n = $(this).val().split('\n').filter(function (l) { return l.trim() !== ''; }).length;
+                $('#lflow-txt-import-count').text(n > 0 ? n + ' ligne(s) détectée(s)' : '');
+            });
+
+            // Submit
+            $(document).on('click', '#lflow-txt-import-submit', function () {
+                var pid     = $('#lflow-txt-import-product').val();
+                var vid     = $('#lflow-txt-import-variation').val() || 0;
+                var type    = $('#lflow-txt-import-type').val() || 'key';
+                var delivre = parseInt($('#lflow-txt-import-delivre').val()) || 1;
+                var valid   = parseInt($('#lflow-txt-import-valid').val()) || 0;
+                var lines   = $('#lflow-txt-import-lines').val();
+
+                if (!pid || pid === '0') { alert('Veuillez sélectionner un produit.'); return; }
+                if (!lines.trim())       { alert('Veuillez saisir ou charger des licences.'); return; }
+
+                var $btn    = $(this).prop('disabled', true).text('Import…');
+                var $status = $('#lflow-txt-import-status').text('Envoi en cours…');
+
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_import_txt', nonce: lflow_admin.nonce,
+                    product_id: pid, variation_id: vid, license_type: type,
+                    delivre_x_times: delivre, valid: valid, license_keys: lines
+                }, function (response) {
+                    $btn.prop('disabled', false).text('Importer');
+                    $status.text('');
+                    if (response.success) {
+                        $('#lflow-txt-import-modal').hide();
+                        $('#lflow-txt-import-lines').val('');
+                        LFLOW.showNotice(response.data.message, 'success');
+                        if (typeof LFLOW._loadTable === 'function') { LFLOW._loadTable(); }
+                    } else {
+                        alert(response.data.message || lflow_admin.i18n.error);
+                    }
+                }).fail(function () {
+                    $btn.prop('disabled', false).text('Importer');
+                    $status.text('');
+                    alert(lflow_admin.i18n.error);
                 });
             });
         },
@@ -393,11 +539,17 @@
                 });
             }
 
-            // Text search — debounce 350 ms (immediate feedback expected)
-            $(document).on('input', '#lflow-filter-s', function () {
+            // Expose load so other modules (TXT import) can refresh the table
+            LFLOW._loadTable = load;
+
+            // Text search — debounce 350 ms; instant reload when field is cleared.
+            // Also binds 'search' to catch the browser's native ✕ clear button on
+            // <input type="search"> which fires 'search' but not always 'input'.
+            $(document).on('input search', '#lflow-filter-s', function () {
                 currentPaged = 1;
                 clearTimeout(debounce);
-                debounce = setTimeout(load, 350);
+                var delay = $(this).val() === '' ? 0 : 350;
+                debounce = setTimeout(load, delay);
             });
 
             // "Filtrer" button / form submit
