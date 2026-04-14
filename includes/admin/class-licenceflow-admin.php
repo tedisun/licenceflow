@@ -29,7 +29,6 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_sync_stock',           array( $this, 'ajax_sync_stock' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
-        add_action( 'wp_ajax_lflow_import_txt',            array( $this, 'ajax_import_txt' ) );
 
         // Quick CSV export (admin-post)
         add_action( 'admin_post_lflow_quick_export', array( $this, 'handle_quick_export' ) );
@@ -520,101 +519,6 @@ class LicenceFlow_Admin {
         }
 
         wp_send_json_success( $status );
-    }
-
-    // ── AJAX: import TXT licenses ─────────────────────────────────────────────
-
-    /**
-     * Batch-insert licenses from a newline-delimited text payload.
-     * One license value per line. The license type is read from the product
-     * config (or overridden via POST license_type).
-     *
-     * POST params: product_id, variation_id, license_type, license_keys (raw text),
-     *              delivre_x_times, valid
-     */
-    public function ajax_import_txt(): void {
-        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
-        LicenceFlow_Security::get_instance()->require_capability();
-
-        $product_id   = absint( $_POST['product_id']   ?? 0 );
-        $variation_id = absint( $_POST['variation_id'] ?? 0 );
-        $license_type = sanitize_key( $_POST['license_type'] ?? 'key' );
-        $delivre_x    = max( 1, absint( $_POST['delivre_x_times'] ?? 1 ) );
-        $valid        = absint( $_POST['valid'] ?? 0 );
-        $raw_text     = wp_unslash( $_POST['license_keys'] ?? '' );
-
-        if ( ! $product_id ) {
-            wp_send_json_error( array( 'message' => __( 'Produit invalide.', 'licenceflow' ) ) );
-        }
-
-        // Resolve license_type from product config if not explicitly provided
-        if ( empty( $license_type ) || $license_type === 'key' ) {
-            $cfg_type = LicenceFlow_Product_Config::get_license_type( $product_id, $variation_id );
-            if ( $cfg_type ) {
-                $license_type = $cfg_type;
-            }
-        }
-
-        $lines    = array_values( array_filter( array_map( 'trim', explode( "\n", $raw_text ) ) ) );
-        $security = LicenceFlow_Security::get_instance();
-        $inserted = 0;
-        $skipped  = 0;
-
-        foreach ( $lines as $line ) {
-            if ( mb_strlen( $line ) > 5000 ) { $skipped++; continue; }
-
-            // For account/link/code types transmitted as "field1||field2"
-            $value_for_type = $line;
-            if ( $license_type === 'account' && strpos( $line, '||' ) !== false ) {
-                $parts = explode( '||', $line, 2 );
-                $value_for_type = array( 'username' => trim( $parts[0] ), 'password' => trim( $parts[1] ) );
-            } elseif ( $license_type === 'link' && strpos( $line, '||' ) !== false ) {
-                $parts = explode( '||', $line, 2 );
-                $value_for_type = array( 'url' => trim( $parts[0] ), 'label' => trim( $parts[1] ) );
-            } elseif ( $license_type === 'code' && strpos( $line, '||' ) !== false ) {
-                $parts = explode( '||', $line, 2 );
-                $value_for_type = array( 'key' => trim( $parts[0] ), 'note' => trim( $parts[1] ) );
-            }
-
-            $clean      = $security->sanitize_license_field( $value_for_type, $license_type );
-            $serialized = lflow_serialize_license_value( $clean, $license_type );
-
-            $id = LicenceFlow_License_DB::insert( array(
-                'product_id'                => $product_id,
-                'variation_id'              => $variation_id,
-                'license_key'               => $serialized,
-                'license_type'              => $license_type,
-                'license_status'            => 'available',
-                'delivre_x_times'           => $delivre_x,
-                'remaining_delivre_x_times' => $delivre_x,
-                'valid'                     => $valid,
-            ) );
-
-            if ( $id ) { $inserted++; } else { $skipped++; }
-        }
-
-        if ( $inserted > 0 ) {
-            LicenceFlow_Core::get_instance()->sync_product_stock( $product_id, $variation_id );
-        }
-
-        $msg = sprintf(
-            /* translators: %d: number of licenses inserted */
-            _n( '%d licence importée.', '%d licences importées.', $inserted, 'licenceflow' ),
-            $inserted
-        );
-        if ( $skipped > 0 ) {
-            $msg .= ' ' . sprintf(
-                /* translators: %d: number of skipped lines */
-                __( '%d ligne(s) ignorée(s).', 'licenceflow' ),
-                $skipped
-            );
-        }
-
-        wp_send_json_success( array(
-            'inserted' => $inserted,
-            'skipped'  => $skipped,
-            'message'  => $msg,
-        ) );
     }
 
     // ── Quick CSV export ──────────────────────────────────────────────────────

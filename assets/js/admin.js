@@ -16,7 +16,6 @@
             this.bindMetaboxQuickAdd();
             this.bindFilterVariations();
             this.bindLiveSearch();
-            this.bindTxtImport();
             this.initSearchableSelects();
         },
 
@@ -359,100 +358,6 @@
             $wrap = $wrap || $('#lflow-quick-add-form');
             $wrap.find('.lflow-qa-field').hide();
             $wrap.find('.lflow-qa-field-' + type).show();
-        },
-
-        // ── Import TXT modal ──────────────────────────────────────────────────
-
-        bindTxtImport: function () {
-            var self = this;
-
-            $(document).on('click', '#lflow-txt-import-btn', function (e) {
-                e.preventDefault();
-                $('#lflow-txt-import-modal').show();
-                var $sel = $('#lflow-txt-import-product');
-                if (!$sel.data('lflow-ss')) { self._buildSearchableSelect($sel); }
-            });
-
-            $(document).on('click', '.lflow-txt-import-close, #lflow-txt-import-backdrop', function () {
-                $('#lflow-txt-import-modal').hide();
-            });
-
-            // Product change: load variations + detect license type
-            $(document).on('change', '#lflow-txt-import-product', function () {
-                var pid     = $(this).val();
-                var $varRow = $('#lflow-txt-import-var-row');
-                var $varSel = $('#lflow-txt-import-variation');
-                $varSel.find('option:not(:first)').remove().end().val('0');
-
-                if (!pid || pid === '0') { $varRow.hide(); $('#lflow-txt-import-type').val('key'); return; }
-
-                $.post(lflow_admin.ajax_url, {
-                    action: 'lflow_get_variations', nonce: lflow_admin.nonce, product_id: pid
-                }, function (response) {
-                    if (!response.success) return;
-                    if (response.data.variations && response.data.variations.length) {
-                        response.data.variations.forEach(function (v) {
-                            $varSel.append('<option value="' + v.id + '">' + v.label + '</option>');
-                        });
-                        $varRow.show();
-                    } else {
-                        $varRow.hide();
-                    }
-                    if (response.data.license_type) { $('#lflow-txt-import-type').val(response.data.license_type); }
-                });
-            });
-
-            // File → populate textarea
-            $(document).on('change', '#lflow-txt-import-file', function () {
-                var file = this.files && this.files[0];
-                if (!file) return;
-                var reader = new FileReader();
-                reader.onload = function (ev) { $('#lflow-txt-import-lines').val(ev.target.result).trigger('input'); };
-                reader.readAsText(file);
-            });
-
-            // Live line count
-            $(document).on('input', '#lflow-txt-import-lines', function () {
-                var n = $(this).val().split('\n').filter(function (l) { return l.trim() !== ''; }).length;
-                $('#lflow-txt-import-count').text(n > 0 ? n + ' ligne(s) détectée(s)' : '');
-            });
-
-            // Submit
-            $(document).on('click', '#lflow-txt-import-submit', function () {
-                var pid     = $('#lflow-txt-import-product').val();
-                var vid     = $('#lflow-txt-import-variation').val() || 0;
-                var type    = $('#lflow-txt-import-type').val() || 'key';
-                var delivre = parseInt($('#lflow-txt-import-delivre').val()) || 1;
-                var valid   = parseInt($('#lflow-txt-import-valid').val()) || 0;
-                var lines   = $('#lflow-txt-import-lines').val();
-
-                if (!pid || pid === '0') { alert('Veuillez sélectionner un produit.'); return; }
-                if (!lines.trim())       { alert('Veuillez saisir ou charger des licences.'); return; }
-
-                var $btn    = $(this).prop('disabled', true).text('Import…');
-                var $status = $('#lflow-txt-import-status').text('Envoi en cours…');
-
-                $.post(lflow_admin.ajax_url, {
-                    action: 'lflow_import_txt', nonce: lflow_admin.nonce,
-                    product_id: pid, variation_id: vid, license_type: type,
-                    delivre_x_times: delivre, valid: valid, license_keys: lines
-                }, function (response) {
-                    $btn.prop('disabled', false).text('Importer');
-                    $status.text('');
-                    if (response.success) {
-                        $('#lflow-txt-import-modal').hide();
-                        $('#lflow-txt-import-lines').val('');
-                        LFLOW.showNotice(response.data.message, 'success');
-                        if (typeof LFLOW._loadTable === 'function') { LFLOW._loadTable(); }
-                    } else {
-                        alert(response.data.message || lflow_admin.i18n.error);
-                    }
-                }).fail(function () {
-                    $btn.prop('disabled', false).text('Importer');
-                    $status.text('');
-                    alert(lflow_admin.i18n.error);
-                });
-            });
         },
 
         // ── Filter: dynamic variations (no auto-fetch) ────────────────────────

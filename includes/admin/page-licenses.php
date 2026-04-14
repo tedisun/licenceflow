@@ -48,9 +48,9 @@ if ( $cur_product > 0 ) {
     <a href="<?php echo esc_url( LicenceFlow_Admin::add_license_url() ); ?>" class="page-title-action">
         <?php esc_html_e( 'Ajouter une licence', 'licenceflow' ); ?>
     </a>
-    <button type="button" id="lflow-txt-import-btn" class="page-title-action">
+    <a href="<?php echo esc_url( admin_url( 'admin.php?page=lflow-import-export' ) ); ?>" class="page-title-action">
         <?php esc_html_e( 'Importer TXT', 'licenceflow' ); ?>
-    </button>
+    </a>
     <hr class="wp-header-end">
 
     <div id="lflow-inline-notice" class="lflow-notice-inline" style="display:none;"></div>
@@ -166,77 +166,3 @@ if ( $cur_product > 0 ) {
 
 </div>
 
-<!-- ── Import TXT modal ────────────────────────────────────────────────── -->
-<div id="lflow-txt-import-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:100000;">
-    <div id="lflow-txt-import-backdrop" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.55);"></div>
-    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:4px; padding:20px 24px; width:520px; max-width:95vw; max-height:90vh; overflow-y:auto; box-shadow:0 4px 24px rgba(0,0,0,.25);">
-        <h2 style="margin-top:0; display:flex; justify-content:space-between; align-items:center;">
-            <?php esc_html_e( 'Importer des licences (TXT)', 'licenceflow' ); ?>
-            <button type="button" class="lflow-txt-import-close" style="background:none; border:none; font-size:22px; cursor:pointer; line-height:1; padding:0; color:#646970;">&#x2715;</button>
-        </h2>
-        <p class="description" style="margin:0 0 14px;">
-            <?php esc_html_e( 'Une licence par ligne. Le type de licence est lu depuis la config produit.', 'licenceflow' ); ?>
-        </p>
-        <table class="form-table" style="margin:0;">
-            <tr>
-                <th style="width:130px; padding:6px 10px 6px 0;"><?php esc_html_e( 'Produit', 'licenceflow' ); ?> <span style="color:#d63638;">*</span></th>
-                <td style="padding:6px 0;">
-                    <select id="lflow-txt-import-product" class="lflow-product-select" style="min-width:280px;">
-                        <option value="0"><?php esc_html_e( '— Sélectionner un produit —', 'licenceflow' ); ?></option>
-                        <?php foreach ( $licensed_products as $lpid => $lpname ) : ?>
-                            <option value="<?php echo esc_attr( $lpid ); ?>"><?php echo esc_html( $lpname ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </td>
-            </tr>
-            <tr id="lflow-txt-import-var-row" style="display:none;">
-                <th style="padding:6px 10px 6px 0;"><?php esc_html_e( 'Variation', 'licenceflow' ); ?></th>
-                <td style="padding:6px 0;">
-                    <select id="lflow-txt-import-variation" style="min-width:200px;">
-                        <option value="0"><?php esc_html_e( '— Produit principal —', 'licenceflow' ); ?></option>
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th style="padding:6px 10px 6px 0;"><?php esc_html_e( 'Nb livraisons', 'licenceflow' ); ?></th>
-                <td style="padding:6px 0;">
-                    <input type="number" id="lflow-txt-import-delivre" value="1" min="1" style="width:70px;">
-                    <span style="color:#646970; font-size:.85em; margin-left:6px;"><?php esc_html_e( 'fois par licence', 'licenceflow' ); ?></span>
-                </td>
-            </tr>
-            <tr>
-                <th style="padding:6px 10px 6px 0;"><?php esc_html_e( 'Validité (jours)', 'licenceflow' ); ?></th>
-                <td style="padding:6px 0;">
-                    <input type="number" id="lflow-txt-import-valid" value="0" min="0" style="width:70px;">
-                    <span style="color:#646970; font-size:.85em; margin-left:6px;"><?php esc_html_e( '0 = illimité', 'licenceflow' ); ?></span>
-                </td>
-            </tr>
-            <tr>
-                <th style="padding:6px 10px 6px 0;"><?php esc_html_e( 'Fichier .txt', 'licenceflow' ); ?></th>
-                <td style="padding:6px 0;">
-                    <input type="file" id="lflow-txt-import-file" accept=".txt,text/plain">
-                    <p class="description" style="margin:3px 0 0;"><?php esc_html_e( 'Charge et remplit le champ ci-dessous.', 'licenceflow' ); ?></p>
-                </td>
-            </tr>
-            <tr>
-                <th style="padding:6px 10px 6px 0; vertical-align:top; padding-top:10px;"><?php esc_html_e( 'Licences', 'licenceflow' ); ?> <span style="color:#d63638;">*</span></th>
-                <td style="padding:6px 0;">
-                    <textarea id="lflow-txt-import-lines" rows="9"
-                              style="width:100%; font-family:monospace; font-size:.82em; resize:vertical;"
-                              placeholder="<?php esc_attr_e( 'Coller ou charger — une valeur par ligne…', 'licenceflow' ); ?>"></textarea>
-                    <p class="description" id="lflow-txt-import-count" style="margin:3px 0 0;"></p>
-                </td>
-            </tr>
-        </table>
-        <input type="hidden" id="lflow-txt-import-type" value="key">
-        <div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
-            <button type="button" id="lflow-txt-import-submit" class="button button-primary">
-                <?php esc_html_e( 'Importer', 'licenceflow' ); ?>
-            </button>
-            <button type="button" class="button lflow-txt-import-close">
-                <?php esc_html_e( 'Annuler', 'licenceflow' ); ?>
-            </button>
-            <span id="lflow-txt-import-status" style="font-size:.85em; color:#646970; margin-left:4px;"></span>
-        </div>
-    </div>
-</div>

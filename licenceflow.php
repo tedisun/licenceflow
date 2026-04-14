@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.2.2
+ * Version:     1.2.3
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.2.2' );
+define( 'LFLOW_VERSION',   '1.2.3' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
