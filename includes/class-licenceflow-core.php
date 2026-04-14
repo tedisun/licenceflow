@@ -258,6 +258,20 @@ class LicenceFlow_Core {
             }
         }
 
+        // For variable products: re-sync the parent's stock status from its variations.
+        // Without this, the parent product keeps showing "out of stock" even when
+        // a variation's _stock_status has been restored above, because WooCommerce
+        // tracks the parent's status independently and does not observe the variation
+        // meta we just wrote. WC_Product_Variable_Data_Store_CPT::sync_stock() scans
+        // all child _stock_status values and updates the parent accordingly.
+        if ( $variation_id > 0 ) {
+            $parent = wc_get_product( $product_id );
+            if ( $parent instanceof WC_Product_Variable ) {
+                $data_store = WC_Data_Store::load( 'product-variable' );
+                $data_store->sync_stock( $parent );
+            }
+        }
+
         // Clear WooCommerce product cache
         wc_delete_product_transients( $product_id );
     }
