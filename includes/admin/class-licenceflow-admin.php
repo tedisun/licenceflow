@@ -28,6 +28,7 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_bulk_action',          array( $this, 'ajax_bulk_action' ) );
         add_action( 'wp_ajax_lflow_sync_stock',           array( $this, 'ajax_sync_stock' ) );
         add_action( 'wp_ajax_lflow_sync_all_stock',       array( $this, 'ajax_sync_all_stock' ) );
+        add_action( 'wp_ajax_lflow_migrate_enc_keys',     array( $this, 'ajax_migrate_enc_keys' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
 
@@ -536,6 +537,60 @@ class LicenceFlow_Admin {
                 $count
             ),
             'count' => $count,
+        ) );
+    }
+
+    // ── AJAX: migrate encryption keys ────────────────────────────────────────
+
+    public function ajax_migrate_enc_keys(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        $old_key = sanitize_text_field( $_POST['old_key'] ?? '' );
+        $old_iv  = sanitize_text_field( $_POST['old_iv']  ?? '' );
+        $new_key = sanitize_text_field( $_POST['new_key'] ?? '' );
+        $new_iv  = sanitize_text_field( $_POST['new_iv']  ?? '' );
+
+        if ( empty( $old_key ) || empty( $old_iv ) || empty( $new_key ) || empty( $new_iv ) ) {
+            wp_send_json_error( array( 'message' => __( 'Tous les champs sont requis.', 'licenceflow' ) ) );
+        }
+        if ( strlen( $new_key ) < 16 ) {
+            wp_send_json_error( array( 'message' => __( 'La nouvelle clé doit contenir au moins 16 caractères.', 'licenceflow' ) ) );
+        }
+        if ( strlen( $new_iv ) !== 16 ) {
+            wp_send_json_error( array( 'message' => __( 'Le nouvel IV doit contenir exactement 16 caractères.', 'licenceflow' ) ) );
+        }
+        if ( $old_key === $new_key && $old_iv === $new_iv ) {
+            wp_send_json_error( array( 'message' => __( 'Les nouvelles clés sont identiques aux anciennes — aucune migration nécessaire.', 'licenceflow' ) ) );
+        }
+
+        $result = LicenceFlow_License_DB::migrate_encryption_keys( $old_key, $old_iv, $new_key, $new_iv );
+
+        // Only update the stored options if migration had no unrecoverable errors
+        if ( $result['errors'] === 0 ) {
+            update_option( 'lflow_enc_key', $new_key );
+            update_option( 'lflow_enc_iv',  $new_iv );
+        }
+
+        wp_send_json_success( array(
+            'migrated' => $result['migrated'],
+            'skipped'  => $result['skipped'],
+            'errors'   => $result['errors'],
+            'total'    => $result['total'],
+            'keys_updated' => $result['errors'] === 0,
+            'message'  => $result['errors'] === 0
+                ? sprintf(
+                    /* translators: 1: migrated count 2: total count */
+                    __( '%1$d/%2$d licences re-chiffrées avec succès. Nouvelles clés actives.', 'licenceflow' ),
+                    $result['migrated'] + $result['skipped'],
+                    $result['total']
+                )
+                : sprintf(
+                    /* translators: 1: error count 2: total count */
+                    __( 'Migration partielle : %1$d erreur(s) sur %2$d licences. Les clés n\'ont pas été mises à jour — vérifiez les clés sources et réessayez.', 'licenceflow' ),
+                    $result['errors'],
+                    $result['total']
+                ),
         ) );
     }
 

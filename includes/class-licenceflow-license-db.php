@@ -574,6 +574,69 @@ class LicenceFlow_License_DB {
         );
     }
 
+    // ── Encryption key migration ──────────────────────────────────────────────
+
+    /**
+     * Re-encrypt all license_key values in the database.
+     *
+     * Decrypts each row with ($old_key, $old_iv) and re-encrypts with ($new_key, $new_iv).
+     * Rows that fail to decrypt with the old key are left unchanged and counted as errors.
+     *
+     * @return array { migrated: int, skipped: int, errors: int }
+     */
+    public static function migrate_encryption_keys(
+        string $old_key, string $old_iv,
+        string $new_key, string $new_iv
+    ): array {
+        global $wpdb;
+
+        $rows = $wpdb->get_results(
+            "SELECT license_id, license_key FROM {$wpdb->prefix}lflow_licenses",
+            ARRAY_A
+        );
+
+        $migrated = 0;
+        $skipped  = 0;
+        $errors   = 0;
+
+        foreach ( $rows as $row ) {
+            $raw = $row['license_key'];
+
+            // Decrypt with old key
+            $plain = lflow_encrypt_decrypt( 'decrypt', $raw, $old_key, $old_iv );
+
+            if ( $plain === false || $plain === '' ) {
+                // Could not decrypt — either already using new key or corrupted.
+                // Try decrypting with new key to detect "already migrated" rows.
+                $check = lflow_encrypt_decrypt( 'decrypt', $raw, $new_key, $new_iv );
+                if ( $check !== false && $check !== '' ) {
+                    $skipped++; // Already encrypted with new key
+                } else {
+                    $errors++; // Truly unreadable
+                }
+                continue;
+            }
+
+            // Re-encrypt with new key
+            $re_encrypted = lflow_encrypt_decrypt( 'encrypt', $plain, $new_key, $new_iv );
+
+            $wpdb->update(
+                $wpdb->prefix . 'lflow_licenses',
+                array( 'license_key' => $re_encrypted ),
+                array( 'license_id'  => (int) $row['license_id'] )
+            );
+
+            $migrated++;
+        }
+
+        return array(
+            'migrated' => $migrated,
+            'skipped'  => $skipped,
+            'errors'   => $errors,
+            'total'    => count( $rows ),
+        );
+    }
+
     // ── License meta ──────────────────────────────────────────────────────────
 
     /**

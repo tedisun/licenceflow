@@ -207,6 +207,53 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
             <?php submit_button(); ?>
         </form>
+
+        <!-- ── Migration de clés ─────────────────────────────────────────── -->
+        <hr style="margin:32px 0;">
+        <h2 style="font-size:1.1em;"><?php esc_html_e( 'Migrer les licences vers de nouvelles clés', 'licenceflow' ); ?></h2>
+        <p style="max-width:600px; color:#3c434a;">
+            <?php esc_html_e( 'Utilisez cet outil pour changer vos clés de chiffrement sans perdre les données existantes. Le plugin re-chiffre automatiquement toutes les licences avec les nouvelles clés.', 'licenceflow' ); ?>
+        </p>
+        <div style="background:#fff8f0; border:1px solid #f0d060; border-left:4px solid #dba617; border-radius:3px; padding:12px 16px; max-width:600px; margin-bottom:20px;">
+            ⚠️ <strong><?php esc_html_e( 'Faites une sauvegarde de votre base de données avant de lancer la migration.', 'licenceflow' ); ?></strong>
+            <?php esc_html_e( 'Cette opération modifie toutes les valeurs chiffrées en base. Elle est irréversible sans sauvegarde.', 'licenceflow' ); ?>
+        </div>
+        <table class="form-table" style="max-width:700px;">
+            <tr>
+                <th><?php esc_html_e( 'Clé actuelle (source)', 'licenceflow' ); ?></th>
+                <td>
+                    <input type="text" id="lflow-mig-old-key" style="width:100%; max-width:400px; font-family:monospace;"
+                           value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_key' ) ); ?>">
+                    <p class="description"><?php esc_html_e( 'Pré-remplie avec la clé actuelle. Modifiez si vous migrez depuis une autre clé.', 'licenceflow' ); ?></p>
+                </td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e( 'IV actuel (source)', 'licenceflow' ); ?></th>
+                <td>
+                    <input type="text" id="lflow-mig-old-iv" style="width:100%; max-width:400px; font-family:monospace;"
+                           value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_iv' ) ); ?>">
+                </td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e( 'Nouvelle clé (cible)', 'licenceflow' ); ?></th>
+                <td>
+                    <input type="text" id="lflow-mig-new-key" style="width:100%; max-width:400px; font-family:monospace;" placeholder="<?php esc_attr_e( 'Minimum 16 caractères', 'licenceflow' ); ?>">
+                </td>
+            </tr>
+            <tr>
+                <th><?php esc_html_e( 'Nouvel IV (cible)', 'licenceflow' ); ?></th>
+                <td>
+                    <input type="text" id="lflow-mig-new-iv" style="width:100%; max-width:400px; font-family:monospace;" placeholder="<?php esc_attr_e( 'Exactement 16 caractères', 'licenceflow' ); ?>">
+                    <p class="description"><?php esc_html_e( 'Le chiffrement AES-CBC requiert un IV de 16 caractères exactement.', 'licenceflow' ); ?></p>
+                </td>
+            </tr>
+        </table>
+        <p>
+            <button type="button" id="lflow-migrate-keys-btn" class="button button-primary">
+                <?php esc_html_e( 'Lancer la migration', 'licenceflow' ); ?>
+            </button>
+        </p>
+        <div id="lflow-migrate-result" style="max-width:600px; display:none; margin-top:10px;"></div>
     </div>
 
     <!-- ── Tab: Notifications ────────────────────────────────────────────── -->
@@ -274,6 +321,75 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
 <script>
 (function($){
+    $('#lflow-migrate-keys-btn').on('click', function(){
+        var newKey = $('#lflow-mig-new-key').val().trim();
+        var newIv  = $('#lflow-mig-new-iv').val().trim();
+
+        if ( newIv.length !== 16 ) {
+            alert('<?php echo esc_js( __( 'Le nouvel IV doit contenir exactement 16 caractères.', 'licenceflow' ) ); ?>');
+            return;
+        }
+        if ( ! confirm('<?php echo esc_js( __( 'Lancer la migration ? Toutes les licences seront re-chiffrées. Cette action est irréversible sans sauvegarde DB.', 'licenceflow' ) ); ?>') ) {
+            return;
+        }
+
+        var $btn    = $(this);
+        var $result = $('#lflow-migrate-result');
+        var label   = $btn.text();
+
+        $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Migration en cours…', 'licenceflow' ) ); ?>');
+        $result.hide().html('');
+
+        $.post(lflow_admin.ajax_url, {
+            action:  'lflow_migrate_enc_keys',
+            nonce:   lflow_admin.nonce,
+            old_key: $('#lflow-mig-old-key').val(),
+            old_iv:  $('#lflow-mig-old-iv').val(),
+            new_key: newKey,
+            new_iv:  newIv
+        }, function(r){
+            $btn.prop('disabled', false).text(label);
+            $result.show();
+
+            if ( r.success ) {
+                var d = r.data;
+                var color = d.errors > 0 ? '#92400e' : '#1d7a3a';
+                var bg    = d.errors > 0 ? '#fffbeb' : '#f0fdf4';
+                var border= d.errors > 0 ? '#f0d060' : '#b0e0ba';
+                $result.html(
+                    '<div style="background:' + bg + '; border:1px solid ' + border + '; border-radius:4px; padding:12px 16px; color:' + color + ';">' +
+                    '<p style="margin:0 0 6px; font-weight:600;">' + ( d.errors > 0 ? '⚠️ ' : '✅ ' ) + d.message + '</p>' +
+                    '<p style="margin:0; font-size:.9em;">' +
+                    '<?php echo esc_js( __( 'Re-chiffrées', 'licenceflow' ) ); ?> : ' + d.migrated +
+                    ' | <?php echo esc_js( __( 'Déjà à jour', 'licenceflow' ) ); ?> : ' + d.skipped +
+                    ' | <?php echo esc_js( __( 'Erreurs', 'licenceflow' ) ); ?> : ' + d.errors +
+                    '</p>' +
+                    '</div>'
+                );
+                // Update the "source" fields to reflect the new active keys
+                if ( d.keys_updated ) {
+                    $('#lflow-mig-old-key').val( newKey );
+                    $('#lflow-mig-old-iv').val( newIv );
+                    $('#lflow-mig-new-key').val('');
+                    $('#lflow-mig-new-iv').val('');
+                }
+            } else {
+                $result.html(
+                    '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                    '⚠️ ' + ( r.data && r.data.message ? r.data.message : '<?php echo esc_js( __( 'Erreur inconnue.', 'licenceflow' ) ); ?>' ) +
+                    '</div>'
+                );
+            }
+        }).fail(function(){
+            $btn.prop('disabled', false).text(label);
+            $result.show().html(
+                '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                '⚠️ <?php echo esc_js( __( 'Erreur réseau. Veuillez réessayer.', 'licenceflow' ) ); ?>' +
+                '</div>'
+            );
+        });
+    });
+
     $('#lflow-sync-all-stock-btn').on('click', function(){
         var $btn    = $(this);
         var $result = $('#lflow-sync-all-result');
