@@ -124,6 +124,16 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                     </td>
                 </tr>
                 <tr>
+                    <th><?php esc_html_e( 'Synchronisation du stock', 'licenceflow' ); ?></th>
+                    <td>
+                        <button type="button" id="lflow-sync-all-stock-btn" class="button">
+                            <?php esc_html_e( 'Synchroniser tout le stock maintenant', 'licenceflow' ); ?>
+                        </button>
+                        <div id="lflow-sync-all-result" style="margin-top:10px; display:none;"></div>
+                        <p class="description"><?php esc_html_e( 'Recalcule le stock WooCommerce de tous les produits configurés en fonction des licences disponibles. Utile après un import de licences en lot ou pour corriger une désynchronisation.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+                <tr>
                     <th><?php esc_html_e( 'Clé API MCP', 'licenceflow' ); ?></th>
                     <td>
                         <div class="lflow-api-key-display">
@@ -264,6 +274,43 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
 <script>
 (function($){
+    $('#lflow-sync-all-stock-btn').on('click', function(){
+        var $btn    = $(this);
+        var $result = $('#lflow-sync-all-result');
+        var label   = $btn.text();
+
+        $btn.prop('disabled', true).text('<?php echo esc_js( __( 'Synchronisation…', 'licenceflow' ) ); ?>');
+        $result.hide().html('');
+
+        $.post(lflow_admin.ajax_url, {
+            action: 'lflow_sync_all_stock',
+            nonce:  lflow_admin.nonce
+        }, function(r){
+            $btn.prop('disabled', false).text(label);
+            $result.show();
+            if ( r.success ) {
+                $result.html(
+                    '<div style="color:#1d7a3a; background:#f0fdf4; border:1px solid #b0e0ba; border-radius:4px; padding:10px 14px;">' +
+                    '✅ ' + r.data.message +
+                    '</div>'
+                );
+            } else {
+                $result.html(
+                    '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                    '⚠️ ' + ( r.data && r.data.message ? r.data.message : '<?php echo esc_js( __( 'Erreur inconnue.', 'licenceflow' ) ); ?>' ) +
+                    '</div>'
+                );
+            }
+        }).fail(function(){
+            $btn.prop('disabled', false).text(label);
+            $result.show().html(
+                '<div style="color:#d63638; background:#fff8f8; border:1px solid #f0b8b8; border-radius:4px; padding:10px 14px;">' +
+                '⚠️ <?php echo esc_js( __( 'Erreur réseau. Veuillez réessayer.', 'licenceflow' ) ); ?>' +
+                '</div>'
+            );
+        });
+    });
+
     $('#lflow-check-update-btn').on('click', function(){
         var $btn    = $(this);
         var $result = $('#lflow-update-result');

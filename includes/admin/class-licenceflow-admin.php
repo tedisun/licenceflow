@@ -27,6 +27,7 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_delete_license',       array( $this, 'ajax_delete_license' ) );
         add_action( 'wp_ajax_lflow_bulk_action',          array( $this, 'ajax_bulk_action' ) );
         add_action( 'wp_ajax_lflow_sync_stock',           array( $this, 'ajax_sync_stock' ) );
+        add_action( 'wp_ajax_lflow_sync_all_stock',       array( $this, 'ajax_sync_all_stock' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
 
@@ -464,6 +465,23 @@ class LicenceFlow_Admin {
         $valid_statuses = array_keys( lflow_license_statuses() );
         if ( in_array( $action, $valid_statuses, true ) ) {
             LicenceFlow_License_DB::bulk_update_status( $license_ids, $action );
+
+            // Sync WooCommerce stock for every product affected by this bulk change.
+            if ( LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+                global $wpdb;
+                $ids_sql = implode( ',', array_map( 'intval', $license_ids ) );
+                $pairs   = $wpdb->get_results(
+                    "SELECT DISTINCT product_id, variation_id
+                     FROM {$wpdb->prefix}lflow_licenses
+                     WHERE license_id IN ($ids_sql)",
+                    ARRAY_A
+                );
+                $core = LicenceFlow_Core::get_instance();
+                foreach ( $pairs as $pair ) {
+                    $core->sync_product_stock( (int) $pair['product_id'], (int) $pair['variation_id'] );
+                }
+            }
+
             wp_send_json_success( array( 'message' => sprintf(
                 /* translators: %d: number of licenses */
                 __( '%d licence(s) mise(s) à jour.', 'licenceflow' ),
@@ -490,6 +508,35 @@ class LicenceFlow_Admin {
         LicenceFlow_Core::get_instance()->sync_product_stock( $product_id, $variation_id );
 
         wp_send_json_success( array( 'message' => __( 'Stock synchronisé.', 'licenceflow' ) ) );
+    }
+
+    // ── AJAX: sync all products stock ────────────────────────────────────────
+
+    public function ajax_sync_all_stock(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+            wp_send_json_error( array(
+                'message' => __( 'La synchronisation du stock est désactivée dans les réglages.', 'licenceflow' ),
+            ) );
+        }
+
+        $count = LicenceFlow_Core::get_instance()->sync_all_products_stock();
+
+        wp_send_json_success( array(
+            'message' => sprintf(
+                /* translators: %d: number of products synced */
+                _n(
+                    '%d produit synchronisé.',
+                    '%d produits synchronisés.',
+                    $count,
+                    'licenceflow'
+                ),
+                $count
+            ),
+            'count' => $count,
+        ) );
     }
 
     // ── AJAX: regenerate API key ──────────────────────────────────────────────

@@ -276,6 +276,41 @@ class LicenceFlow_Core {
         wc_delete_product_transients( $product_id );
     }
 
+    // ── Full stock sync ───────────────────────────────────────────────────────
+
+    /**
+     * Sync WooCommerce stock for every actively-configured product/variation.
+     * Loops through wp_lflow_licensed_products WHERE active = 1 and calls
+     * sync_product_stock() on each pair. Used by the manual "Sync all" button
+     * and after bulk status changes.
+     *
+     * @return int  Number of product/variation pairs processed
+     */
+    public function sync_all_products_stock(): int {
+        if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT DISTINCT product_id, variation_id
+             FROM {$wpdb->prefix}lflow_licensed_products
+             WHERE active = 1",
+            ARRAY_A
+        );
+
+        if ( empty( $rows ) ) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ( $rows as $row ) {
+            $this->sync_product_stock( (int) $row['product_id'], (int) $row['variation_id'] );
+            $count++;
+        }
+        return $count;
+    }
+
     // ── Cart validation ───────────────────────────────────────────────────────
 
     public function validate_cart_stock(): void {
