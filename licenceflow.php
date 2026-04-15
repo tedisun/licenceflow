@@ -197,6 +197,10 @@ function lflow_maybe_upgrade_db() {
         return;
     }
 
+    // Seed any options that were not present in older versions (add_option is a no-op if the
+    // option already exists, so this is safe to call on every upgrade path).
+    lflow_set_defaults();
+
     global $wpdb;
 
     // Add admin_notes to licenses if missing

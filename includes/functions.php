@@ -55,13 +55,23 @@ function lflow_encrypt( string $value ): string {
 /**
  * Convenience wrapper: decrypt a license value.
  *
+ * Falls back to the original $value when decryption fails (e.g. data was stored as
+ * plain text before encryption was introduced in v1.2.5). This ensures licences added
+ * with an older version remain readable after an in-place update.
+ *
  * @param string $value
  * @return string
  */
 function lflow_decrypt( string $value ): string {
-    $key = get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
-    $iv  = get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
-    return lflow_encrypt_decrypt( 'decrypt', $value, $key, $iv );
+    if ( $value === '' ) {
+        return '';
+    }
+    $key       = get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
+    $iv        = get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
+    $decrypted = lflow_encrypt_decrypt( 'decrypt', $value, $key, $iv );
+    // openssl_decrypt() returns false on failure (wrong key, malformed ciphertext, etc.).
+    // Return the original stored value so pre-encryption data is still displayed correctly.
+    return ( $decrypted !== false && $decrypted !== '' ) ? $decrypted : $value;
 }
 
 // ─── Encryption key persistence ──────────────────────────────────────────────
