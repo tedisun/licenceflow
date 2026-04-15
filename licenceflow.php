@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.2.4
+ * Version:     1.2.5
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.2.4' );
+define( 'LFLOW_VERSION',   '1.2.5' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -33,6 +33,15 @@ define( 'LFLOW_BASENAME',  plugin_basename( __FILE__ ) );
 // if they have not been replaced.
 define( 'LFLOW_DEFAULT_ENC_KEY', 'CHANGE_THIS_KEY_IN_SETTINGS_NOW!' );
 define( 'LFLOW_DEFAULT_ENC_IV',  'CHANGE_THIS_IV!!' );
+
+// ─── WooCommerce feature compatibility declarations ───────────────────────────
+
+add_action( 'before_woocommerce_init', function () {
+    if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, false );
+    }
+} );
 
 // ─── Dependency check ────────────────────────────────────────────────────────
 
