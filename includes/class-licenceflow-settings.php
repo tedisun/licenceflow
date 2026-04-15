@@ -109,9 +109,9 @@ class LicenceFlow_Settings {
             register_setting( 'lflow_settings_general', $opt, array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         }
 
-        // Encryption tab
-        register_setting( 'lflow_settings_encryption', 'lflow_enc_key', array( 'sanitize_callback' => 'sanitize_text_field' ) );
-        register_setting( 'lflow_settings_encryption', 'lflow_enc_iv',  array( 'sanitize_callback' => 'sanitize_text_field' ) );
+        // Encryption tab — use custom callbacks to auto-migrate data when keys change
+        register_setting( 'lflow_settings_encryption', 'lflow_enc_key', array( 'sanitize_callback' => array( $this, 'sanitize_enc_key' ) ) );
+        register_setting( 'lflow_settings_encryption', 'lflow_enc_iv',  array( 'sanitize_callback' => array( $this, 'sanitize_enc_iv' ) ) );
 
         // Notifications tab
         $notif_options = array( 'lflow_auto_expire', 'lflow_auto_redeem', 'lflow_alert_days_before', 'lflow_alert_email' );
@@ -122,6 +122,78 @@ class LicenceFlow_Settings {
         // Order status tab
         register_setting( 'lflow_settings_order_status', 'lflow_send_when_completed',  array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         register_setting( 'lflow_settings_order_status', 'lflow_send_when_processing', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+    }
+
+    // ── Enc key migration ─────────────────────────────────────────────────────
+
+    /**
+     * Track state across the two enc callbacks within a single request.
+     * Static so both sanitize_enc_key and sanitize_enc_iv can share it.
+     */
+    private static bool $enc_migration_failed = false;
+
+    /**
+     * Sanitize lflow_enc_key — auto-migrates all license data if the key changes.
+     * Runs before the option is saved, so we can revert on failure.
+     */
+    public function sanitize_enc_key( string $new_key ): string {
+        $new_key = sanitize_text_field( $new_key );
+        $old_key = get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
+        $old_iv  = get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
+        $new_iv  = sanitize_text_field( $_POST['lflow_enc_iv'] ?? $old_iv );
+
+        // No change — nothing to do
+        if ( $new_key === $old_key && $new_iv === $old_iv ) {
+            return $new_key;
+        }
+
+        // Default keys mean no real data is encrypted yet — just save
+        if ( $old_key === LFLOW_DEFAULT_ENC_KEY || $old_iv === LFLOW_DEFAULT_ENC_IV ) {
+            return $new_key;
+        }
+
+        $result = LicenceFlow_License_DB::migrate_encryption_keys( $old_key, $old_iv, $new_key, $new_iv );
+
+        if ( $result['errors'] > 0 ) {
+            self::$enc_migration_failed = true;
+            add_settings_error(
+                'lflow_enc_key',
+                'lflow_enc_migration_failed',
+                sprintf(
+                    /* translators: %1$d: migrated, %2$d: total, %3$d: errors */
+                    __( 'Migration partielle : %1$d/%2$d licence(s) re-chiffrée(s), %3$d erreur(s). Les clés n\'ont pas été modifiées.', 'licenceflow' ),
+                    $result['migrated'], $result['total'], $result['errors']
+                ),
+                'error'
+            );
+            return $old_key; // Revert — do not save the new key
+        }
+
+        if ( $result['migrated'] > 0 ) {
+            add_settings_error(
+                'lflow_enc_key',
+                'lflow_enc_migration_ok',
+                sprintf(
+                    /* translators: %d: number of migrated licenses */
+                    __( 'Migration réussie : %d licence(s) re-chiffrée(s) avec les nouvelles clés.', 'licenceflow' ),
+                    $result['migrated']
+                ),
+                'updated'
+            );
+        }
+
+        return $new_key;
+    }
+
+    /**
+     * Sanitize lflow_enc_iv — reverts if migration failed in sanitize_enc_key.
+     */
+    public function sanitize_enc_iv( string $new_iv ): string {
+        $new_iv = sanitize_text_field( $new_iv );
+        if ( self::$enc_migration_failed ) {
+            return get_option( 'lflow_enc_iv', LFLOW_DEFAULT_ENC_IV );
+        }
+        return $new_iv;
     }
 
     /**

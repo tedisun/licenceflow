@@ -175,6 +175,8 @@ class LicenceFlow_API_V1 {
             return new WP_REST_Response( array( 'code' => 'insert_failed', 'message' => 'Failed to create license.' ), 500 );
         }
 
+        $this->maybe_sync_stock( $data['product_id'], $data['variation_id'] );
+
         $license = LicenceFlow_License_DB::get( $id );
         return new WP_REST_Response( $this->format_license( $license, false ), 201 );
     }
@@ -236,21 +238,37 @@ class LicenceFlow_API_V1 {
             return new WP_REST_Response( array( 'code' => 'update_failed', 'message' => 'Failed to update license.' ), 500 );
         }
 
+        // Sync old product if product assignment changed
+        $old_product_id   = (int) $license['product_id'];
+        $old_variation_id = (int) ( $license['variation_id'] ?? 0 );
+        $new_product_id   = (int) ( $data['product_id'] ?? $old_product_id );
+        $new_variation_id = (int) ( $data['variation_id'] ?? $old_variation_id );
+        if ( $new_product_id !== $old_product_id || $new_variation_id !== $old_variation_id ) {
+            $this->maybe_sync_stock( $old_product_id, $old_variation_id );
+        }
+        $this->maybe_sync_stock( $new_product_id, $new_variation_id );
+
         return new WP_REST_Response( $this->format_license( LicenceFlow_License_DB::get( $id ), false ), 200 );
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
     public function delete_license( WP_REST_Request $request ): WP_REST_Response {
-        $id = absint( $request->get_param( 'id' ) );
-        if ( ! LicenceFlow_License_DB::get( $id ) ) {
+        $id      = absint( $request->get_param( 'id' ) );
+        $license = LicenceFlow_License_DB::get( $id );
+        if ( ! $license ) {
             return new WP_REST_Response( array( 'code' => 'not_found', 'message' => 'License not found.' ), 404 );
         }
+
+        $product_id   = (int) $license['product_id'];
+        $variation_id = (int) ( $license['variation_id'] ?? 0 );
 
         $ok = LicenceFlow_License_DB::delete( $id );
         if ( ! $ok ) {
             return new WP_REST_Response( array( 'code' => 'delete_failed', 'message' => 'Failed to delete license.' ), 500 );
         }
+
+        $this->maybe_sync_stock( $product_id, $variation_id );
 
         return new WP_REST_Response( array( 'deleted' => true, 'id' => $id ), 200 );
     }
@@ -295,6 +313,8 @@ class LicenceFlow_API_V1 {
         $existing_ids[] = $license_id;
         $order->update_meta_data( '_lflow_licenses', array_unique( $existing_ids ) );
         $order->save();
+
+        $this->maybe_sync_stock( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) );
 
         return new WP_REST_Response( array(
             'delivered'  => true,
@@ -390,7 +410,17 @@ class LicenceFlow_API_V1 {
                 continue;
             }
 
-            $created[] = array( 'index' => $index, 'license_id' => $id );
+            $created[] = array( 'index' => $index, 'license_id' => $id, 'product_id' => $data['product_id'], 'variation_id' => $data['variation_id'] );
+        }
+
+        // Sync stock once per unique product/variation pair
+        $synced = array();
+        foreach ( $created as $entry ) {
+            $key = $entry['product_id'] . '_' . $entry['variation_id'];
+            if ( ! isset( $synced[ $key ] ) ) {
+                $this->maybe_sync_stock( $entry['product_id'], $entry['variation_id'] );
+                $synced[ $key ] = true;
+            }
         }
 
         // 201 if all succeeded, 207 Multi-Status if partial success/failure
@@ -399,7 +429,7 @@ class LicenceFlow_API_V1 {
         return new WP_REST_Response( array(
             'created' => count( $created ),
             'errors'  => $errors,
-            'items'   => $created,
+            'items'   => array_map( function ( $e ) { return array( 'index' => $e['index'], 'license_id' => $e['license_id'] ); }, $created ),
         ), $status_code );
     }
 
@@ -451,6 +481,12 @@ class LicenceFlow_API_V1 {
         }
 
         return $out;
+    }
+
+    private function maybe_sync_stock( int $product_id, int $variation_id = 0 ): void {
+        if ( $product_id > 0 ) {
+            LicenceFlow_Core::get_instance()->sync_product_stock( $product_id, $variation_id );
+        }
     }
 
     // ── Args schemas ─────────────────────────────────────────────────────────

@@ -433,9 +433,16 @@ class LicenceFlow_Admin {
             wp_send_json_error( array( 'message' => __( 'ID invalide.', 'licenceflow' ) ) );
         }
 
+        // Capture product/variation before delete for stock sync
+        $license = LicenceFlow_License_DB::get( $license_id );
+
         $ok = LicenceFlow_License_DB::delete( $license_id );
         if ( ! $ok ) {
             wp_send_json_error( array( 'message' => __( 'Erreur lors de la suppression.', 'licenceflow' ) ) );
+        }
+
+        if ( $license ) {
+            LicenceFlow_Core::get_instance()->sync_product_stock( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) );
         }
 
         wp_send_json_success( array( 'message' => __( 'Licence supprimée.', 'licenceflow' ) ) );
@@ -455,7 +462,27 @@ class LicenceFlow_Admin {
         }
 
         if ( $action === 'delete' ) {
+            // Capture product/variation pairs before delete for stock sync
+            if ( LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+                global $wpdb;
+                $ids_sql      = implode( ',', array_map( 'intval', $license_ids ) );
+                $delete_pairs = $wpdb->get_results(
+                    "SELECT DISTINCT product_id, variation_id
+                     FROM {$wpdb->prefix}lflow_licenses
+                     WHERE license_id IN ($ids_sql)",
+                    ARRAY_A
+                );
+            }
+
             LicenceFlow_License_DB::bulk_delete( $license_ids );
+
+            if ( ! empty( $delete_pairs ) ) {
+                $core = LicenceFlow_Core::get_instance();
+                foreach ( $delete_pairs as $pair ) {
+                    $core->sync_product_stock( (int) $pair['product_id'], (int) $pair['variation_id'] );
+                }
+            }
+
             wp_send_json_success( array( 'message' => sprintf(
                 /* translators: %d: number of licenses */
                 __( '%d licence(s) supprimée(s).', 'licenceflow' ),

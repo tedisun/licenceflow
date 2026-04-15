@@ -349,5 +349,14 @@ class LicenceFlow_Product_Metabox {
                 LicenceFlow_Product_Config::save_config( $post_id, absint( $variation_id ), $vdata );
             }
         }
+
+        // Sync WooCommerce stock after config save (active status may have changed)
+        $core = LicenceFlow_Core::get_instance();
+        $core->sync_product_stock( $post_id, 0 );
+        if ( ! empty( $_POST['lflow_variation'] ) && is_array( $_POST['lflow_variation'] ) ) {
+            foreach ( array_keys( $_POST['lflow_variation'] ) as $variation_id ) {
+                $core->sync_product_stock( $post_id, absint( $variation_id ) );
+            }
+        }
     }
 }

@@ -35,6 +35,9 @@ class LicenceFlow_Core {
         // Refund: restore licenses to available when an order is refunded
         add_action( 'woocommerce_order_refunded', array( $this, 'handle_refund' ), 10, 2 );
 
+        // Cancellation / failure: restore licenses just like a refund
+        add_action( 'woocommerce_order_status_changed', array( $this, 'handle_order_status_changed' ), 10, 3 );
+
         // Cart validation (optional)
         add_action( 'woocommerce_check_cart_items', array( $this, 'validate_cart_stock' ) );
 
@@ -198,6 +201,19 @@ class LicenceFlow_Core {
 
             LicenceFlow_License_DB::update( $lid, $update );
             $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+        }
+    }
+
+    // ── Order cancellation / failure ─────────────────────────────────────────
+
+    /**
+     * Restore licenses when an order is cancelled or failed.
+     * Same logic as handle_refund — guard against double-processing is built in
+     * (handle_refund returns early if _lflow_licenses meta is empty).
+     */
+    public function handle_order_status_changed( int $order_id, string $old_status, string $new_status ): void {
+        if ( in_array( $new_status, array( 'cancelled', 'failed' ), true ) ) {
+            $this->handle_refund( $order_id, 0 );
         }
     }
 

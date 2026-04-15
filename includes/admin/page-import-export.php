@@ -243,6 +243,11 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
             }
             fclose( $handle );
 
+            // Sync stock if applicable (same pattern as TXT import)
+            if ( $imported > 0 && LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) {
+                LicenceFlow_Core::get_instance()->sync_product_stock( $import_product_id, 0 );
+            }
+
             $notice = array(
                 'type' => 'updated',
                 'msg'  => sprintf(
