@@ -68,12 +68,13 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                     <th>
                         <?php esc_html_e( 'Ordre de livraison', 'licenceflow' ); ?>
                         <button type="button" class="lflow-help-btn" aria-label="<?php esc_attr_e( 'Aide', 'licenceflow' ); ?>">?</button>
-                        <span class="lflow-help-text"><?php esc_html_e( 'FIFO (recommandé) : la première licence ajoutée est la première livrée. Idéal pour écouler les licences dans l\'ordre d\'ajout. LIFO : la dernière licence ajoutée est livrée en premier. Utile si vous ajoutez des lots et voulez utiliser les plus récents d\'abord.', 'licenceflow' ); ?></span>
+                        <span class="lflow-help-text"><?php esc_html_e( 'FIFO (recommandé) : la première licence ajoutée est la première livrée. LIFO : la dernière licence ajoutée est livrée en premier. Meilleure correspondance : cherche d\'abord une clé unique dont la capacité couvre exactement la commande, puis la plus petite capacité suffisante — minimise le nombre de clés différentes envoyées au client.', 'licenceflow' ); ?></span>
                     </th>
                     <td>
                         <select name="lflow_key_delivery">
-                            <option value="fifo" <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'fifo' ); ?>><?php esc_html_e( 'FIFO (premier entré, premier sorti)', 'licenceflow' ); ?></option>
-                            <option value="lifo" <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'lifo' ); ?>><?php esc_html_e( 'LIFO (dernier entré, premier sorti)', 'licenceflow' ); ?></option>
+                            <option value="fifo"     <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'fifo' ); ?>><?php esc_html_e( 'FIFO (premier entré, premier sorti)', 'licenceflow' ); ?></option>
+                            <option value="lifo"     <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'lifo' ); ?>><?php esc_html_e( 'LIFO (dernier entré, premier sorti)', 'licenceflow' ); ?></option>
+                            <option value="best_fit" <?php selected( LicenceFlow_Settings::get( 'lflow_key_delivery' ), 'best_fit' ); ?>><?php esc_html_e( 'Meilleure correspondance (Best Fit) — minimise le nombre de clés livrées', 'licenceflow' ); ?></option>
                         </select>
                     </td>
                 </tr>

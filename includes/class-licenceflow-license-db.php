@@ -216,6 +216,119 @@ class LicenceFlow_License_DB {
         return $result;
     }
 
+    // ── Fetch available — Best Fit ────────────────────────────────────────────
+
+    /**
+     * Fetch N delivery slots using a best-fit strategy.
+     *
+     * Step 1 — single key: find the license whose remaining_delivre_x_times is
+     *   the SMALLEST value >= $qty (exact or nearest-over). One key covers the
+     *   whole order, minimising the number of distinct keys sent to the customer.
+     *
+     * Step 2 — fallback: if no single key can cover $qty, fetch enough keys
+     *   ordered by remaining_delivre_x_times DESC (biggest first) so the fewest
+     *   possible keys are combined to fill the order.
+     *
+     * Return format is identical to fetch_available() — license rows repeated
+     * per delivery slot, ready for the core delivery engine.
+     *
+     * @param int $product_id
+     * @param int $variation_id  0 = ignore variation
+     * @param int $qty           Total delivery slots needed
+     * @return array
+     */
+    public static function fetch_best_fit( int $product_id, int $variation_id, int $qty ): array {
+        global $wpdb;
+
+        if ( $qty <= 0 ) return array();
+
+        // ── Step 1: single key that covers $qty (smallest sufficient) ──────────
+
+        if ( $variation_id > 0 ) {
+            $best = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}lflow_licenses
+                     WHERE product_id = %d AND variation_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times >= %d
+                     ORDER BY remaining_delivre_x_times ASC
+                     LIMIT 1",
+                    $product_id, $variation_id, $qty
+                ),
+                ARRAY_A
+            );
+        } else {
+            $best = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}lflow_licenses
+                     WHERE product_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times >= %d
+                     ORDER BY remaining_delivre_x_times ASC
+                     LIMIT 1",
+                    $product_id, $qty
+                ),
+                ARRAY_A
+            );
+        }
+
+        if ( $best ) {
+            $best['license_key'] = lflow_decrypt( $best['license_key'] );
+            // Fill all $qty slots with this single key
+            return array_fill( 0, $qty, $best );
+        }
+
+        // ── Step 2: no single key covers — biggest keys first to minimise count ─
+
+        if ( $variation_id > 0 ) {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}lflow_licenses
+                     WHERE product_id = %d AND variation_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times > 0
+                     ORDER BY remaining_delivre_x_times DESC
+                     LIMIT %d",
+                    $product_id, $variation_id, $qty
+                ),
+                ARRAY_A
+            );
+        } else {
+            $rows = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}lflow_licenses
+                     WHERE product_id = %d
+                       AND license_status = 'available'
+                       AND remaining_delivre_x_times > 0
+                     ORDER BY remaining_delivre_x_times DESC
+                     LIMIT %d",
+                    $product_id, $qty
+                ),
+                ARRAY_A
+            );
+        }
+
+        if ( empty( $rows ) ) return array();
+
+        foreach ( $rows as &$row ) {
+            $row['license_key'] = lflow_decrypt( $row['license_key'] );
+        }
+        unset( $row );
+
+        // Same slot-filling logic as fetch_available()
+        $result           = array();
+        $remaining_needed = $qty;
+        foreach ( $rows as $row ) {
+            if ( $remaining_needed <= 0 ) break;
+            $can_contribute   = min( (int) $row['remaining_delivre_x_times'], $remaining_needed );
+            for ( $i = 0; $i < $can_contribute; $i++ ) {
+                $result[] = $row;
+            }
+            $remaining_needed -= $can_contribute;
+        }
+        return $result;
+    }
+
     // ── Insert ────────────────────────────────────────────────────────────────
 
     /**

@@ -1,5 +1,11 @@
 # Changelog — LicenceFlow
 
+## [1.3.0] — 2026-04-17
+
+### Ajouté
+- **Mode de livraison "Meilleure correspondance" (Best Fit)** — nouvelle stratégie de livraison disponible dans Réglages > Ordre de livraison. Cherche d'abord une clé unique dont la capacité couvre exactement la commande (ou la plus petite capacité suffisante), puis en fallback combine les clés les plus grandes en premier. Minimise le nombre de clés différentes envoyées au client.
+- Index SQL sur `remaining_delivre_x_times` ajouté automatiquement à la mise à jour — optimise les requêtes best-fit.
+
 ## [1.2.9] — 2026-04-15
 
 ### Corrigé

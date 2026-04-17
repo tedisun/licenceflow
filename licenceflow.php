@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.2.9
+ * Version:     1.3.0
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.2.9' );
+define( 'LFLOW_VERSION',   '1.3.0' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -153,7 +153,8 @@ function lflow_create_tables() {
         KEY product_id (product_id),
         KEY variation_id (variation_id),
         KEY license_status (license_status),
-        KEY order_id (order_id)
+        KEY order_id (order_id),
+        KEY remaining_delivre_x_times (remaining_delivre_x_times)
     ) $charset;";
     dbDelta( $sql );
 
@@ -202,6 +203,12 @@ function lflow_maybe_upgrade_db() {
     lflow_set_defaults();
 
     global $wpdb;
+
+    // Add index on remaining_delivre_x_times if missing (used by best-fit delivery)
+    $idx = $wpdb->get_results( "SHOW INDEX FROM {$wpdb->prefix}lflow_licenses WHERE Key_name = 'remaining_delivre_x_times'" );
+    if ( empty( $idx ) ) {
+        $wpdb->query( "ALTER TABLE {$wpdb->prefix}lflow_licenses ADD INDEX remaining_delivre_x_times (remaining_delivre_x_times)" );
+    }
 
     // Add admin_notes to licenses if missing
     $cols = $wpdb->get_col( "SHOW COLUMNS FROM {$wpdb->prefix}lflow_licenses LIKE 'admin_notes'" );

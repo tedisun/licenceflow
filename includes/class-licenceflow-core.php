@@ -80,10 +80,10 @@ class LicenceFlow_Core {
         // Prevent double delivery
         if ( $order->get_meta( '_lflow_delivered' ) === '1' ) return;
 
-        $fifo       = LicenceFlow_Settings::get( 'lflow_key_delivery' ) !== 'lifo';
-        $stock_sync = LicenceFlow_Settings::is_on( 'lflow_stock_sync' );
-        $all_ids    = array();
-        $delivery_map = array(); // item_key => [ license_ids ]
+        $delivery_mode = LicenceFlow_Settings::get( 'lflow_key_delivery', 'fifo' );
+        $stock_sync    = LicenceFlow_Settings::is_on( 'lflow_stock_sync' );
+        $all_ids       = array();
+        $delivery_map  = array(); // item_key => [ license_ids ]
 
         foreach ( $order->get_items() as $item_key => $item ) {
             $product_id   = (int) $item->get_product_id();
@@ -97,7 +97,11 @@ class LicenceFlow_Core {
             $delivery_qty = LicenceFlow_Product_Config::get_delivery_qty( $product_id, $variation_id );
             $total_qty    = $delivery_qty * $item_qty;
 
-            $licenses = LicenceFlow_License_DB::fetch_available( $product_id, $variation_id, $total_qty, $fifo );
+            if ( $delivery_mode === 'best_fit' ) {
+                $licenses = LicenceFlow_License_DB::fetch_best_fit( $product_id, $variation_id, $total_qty );
+            } else {
+                $licenses = LicenceFlow_License_DB::fetch_available( $product_id, $variation_id, $total_qty, $delivery_mode !== 'lifo' );
+            }
 
             if ( empty( $licenses ) ) continue;
 
