@@ -407,6 +407,7 @@
             }
 
             // Product change: load variations + type for parent config
+            var _varXhr = null;
             $productSelect.on('change', function () {
                 var pid = $(this).val();
                 var $varRow    = $('#lflow-variation-row');
@@ -415,14 +416,18 @@
                 $varSelect.find('option:not(:first)').remove();
                 $varSelect.val('0');
 
+                if ( _varXhr ) { _varXhr.abort(); _varXhr = null; }
                 if ( !pid ) { $varRow.hide(); return; }
 
-                $.post( lflow_admin.ajax_url, {
+                _varXhr = $.post( lflow_admin.ajax_url, {
                     action:     'lflow_get_variations',
                     nonce:      lflow_admin.nonce,
                     product_id: pid
                 }, function ( response ) {
+                    _varXhr = null;
                     if ( response.success ) {
+                        // Clear again inside callback to guard against concurrent requests
+                        $varSelect.find('option:not(:first)').remove();
                         var vars = response.data.variations || [];
                         if ( vars.length ) {
                             vars.forEach(function (v) {
