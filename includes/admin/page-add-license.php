@@ -105,15 +105,18 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     </td>
                 </tr>
 
-                <!-- License type (read-only display — set by product config) -->
+                <!-- License type — pre-filled from product config via JS, but editable -->
                 <tr>
-                    <th><?php esc_html_e( 'Type de licence', 'licenceflow' ); ?></th>
+                    <th><label for="lflow-license-type"><?php esc_html_e( 'Type de licence', 'licenceflow' ); ?></label></th>
                     <td>
-                        <input type="hidden" id="lflow-license-type" name="license_type" value="key">
-                        <span id="lflow-license-type-label" style="font-weight:600; color:#2271b1;">
-                            🔑 <?php esc_html_e( 'Clé de licence', 'licenceflow' ); ?>
-                        </span>
-                        <p class="lflow-field-hint"><?php esc_html_e( 'Défini par la configuration du produit.', 'licenceflow' ); ?></p>
+                        <select id="lflow-license-type" name="license_type">
+                            <?php foreach ( lflow_license_types() as $slug => $label ) : ?>
+                                <option value="<?php echo esc_attr( $slug ); ?>">
+                                    <?php echo esc_html( $label ); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="lflow-field-hint"><?php esc_html_e( 'Pré-rempli depuis la configuration du produit. Modifiable si besoin.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 

@@ -17,6 +17,7 @@
             this.bindFilterVariations();
             this.bindLiveSearch();
             this.initSearchableSelects();
+            this.bindAddLicenseForm();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -358,6 +359,95 @@
             $wrap = $wrap || $('#lflow-quick-add-form');
             $wrap.find('.lflow-qa-field').hide();
             $wrap.find('.lflow-qa-field-' + type).show();
+        },
+
+        // ── Add-license form: product/variation → type ───────────────────────
+        //
+        // The standalone "Ajouter une licence" page must update the license_type
+        // hidden input, the visible type label, and the value field group
+        // whenever the admin picks a product or variation.
+
+        bindAddLicenseForm: function () {
+            var $productSelect = $('#lflow-product-id');
+            if ( !$productSelect.length ) return;
+
+            function updateType( type ) {
+                if ( !type ) return;
+                // Update the select (now visible and editable)
+                $('#lflow-license-type').val( type );
+                // Show the right value field group
+                $('.lflow-license-field-group').removeClass('lflow-active').hide();
+                $('#lflow-field-' + type).addClass('lflow-active').show();
+            }
+
+            // Manual type change by admin: swap field groups immediately
+            $(document).on('change', '#lflow-license-type', function () {
+                var type = $(this).val();
+                $('.lflow-license-field-group').removeClass('lflow-active').hide();
+                $('#lflow-field-' + type).addClass('lflow-active').show();
+            });
+
+            function fetchConfig( pid, vid ) {
+                if ( !pid ) return;
+                $.post( lflow_admin.ajax_url, {
+                    action:       'lflow_get_variations',
+                    nonce:        lflow_admin.nonce,
+                    product_id:   pid,
+                    variation_id: vid || 0
+                }, function ( response ) {
+                    if ( response.success ) {
+                        if ( response.data.license_type ) {
+                            updateType( response.data.license_type );
+                        }
+                        if ( typeof response.data.default_valid !== 'undefined' ) {
+                            $('#lflow-valid').val( response.data.default_valid );
+                        }
+                    }
+                });
+            }
+
+            // Product change: load variations + type for parent config
+            $productSelect.on('change', function () {
+                var pid = $(this).val();
+                var $varRow    = $('#lflow-variation-row');
+                var $varSelect = $('#lflow-variation-id');
+
+                $varSelect.find('option:not(:first)').remove();
+                $varSelect.val('0');
+
+                if ( !pid ) { $varRow.hide(); return; }
+
+                $.post( lflow_admin.ajax_url, {
+                    action:     'lflow_get_variations',
+                    nonce:      lflow_admin.nonce,
+                    product_id: pid
+                }, function ( response ) {
+                    if ( response.success ) {
+                        var vars = response.data.variations || [];
+                        if ( vars.length ) {
+                            vars.forEach(function (v) {
+                                $varSelect.append('<option value="' + v.id + '">' + v.label + '</option>');
+                            });
+                            $varRow.show();
+                        } else {
+                            $varRow.hide();
+                        }
+                        if ( response.data.license_type ) {
+                            updateType( response.data.license_type );
+                        }
+                        if ( typeof response.data.default_valid !== 'undefined' ) {
+                            $('#lflow-valid').val( response.data.default_valid );
+                        }
+                    }
+                });
+            });
+
+            // Variation change: reload type for this specific variation
+            $(document).on('change', '#lflow-variation-id', function () {
+                var pid = $productSelect.val();
+                var vid = $(this).val();
+                fetchConfig( pid, vid );
+            });
         },
 
         // ── Filter: dynamic variations (no auto-fetch) ────────────────────────
