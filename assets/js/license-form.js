@@ -11,10 +11,12 @@
             code:    '🎟️ '
         },
 
+        _varXhr: null,
+
         init: function () {
             this.bindProductChange();
             this.bindVariationChange();
-            // Init field groups visibility based on current hidden input value
+            this.bindTypeChange();
             var currentType = $('#lflow-license-type').val() || 'key';
             this.showFieldGroup(currentType);
         },
@@ -23,39 +25,38 @@
 
         bindProductChange: function () {
             $(document).on('change', '#lflow-product-id', function () {
-                var productId = $(this).val();
+                var productId  = $(this).val();
+                var $varSelect = $('#lflow-variation-id');
+                var $varRow    = $('#lflow-variation-row');
 
-                // Reset variation
-                $('#lflow-variation-id').html('<option value="0">' + (lflow_admin.i18n ? '— Toutes —' : '— All —') + '</option>');
-                $('#lflow-variation-row').hide();
+                $varSelect.find('option:not(:first)').remove();
+                $varSelect.val('0');
+                $varRow.hide();
 
-                if (!productId) {
-                    return;
-                }
+                if (LicenseForm._varXhr) { LicenseForm._varXhr.abort(); LicenseForm._varXhr = null; }
+                if (!productId) { return; }
 
-                $.post(lflow_admin.ajax_url, {
+                LicenseForm._varXhr = $.post(lflow_admin.ajax_url, {
                     action: 'lflow_get_variations',
                     nonce: lflow_admin.nonce,
                     product_id: productId
                 }, function (response) {
+                    LicenseForm._varXhr = null;
                     if (!response.success) return;
 
                     var data = response.data;
 
-                    // Populate variations dropdown
+                    $varSelect.find('option:not(:first)').remove();
                     if (data.variations && data.variations.length > 0) {
-                        var $select = $('#lflow-variation-id');
                         $.each(data.variations, function (i, v) {
-                            $select.append('<option value="' + v.id + '">' + v.label + '</option>');
+                            $varSelect.append('<option value="' + v.id + '">' + v.label + '</option>');
                         });
-                        $('#lflow-variation-row').show();
+                        $varRow.show();
                     }
 
-                    // Update license type
                     var type = data.license_type || 'key';
                     LicenseForm.setLicenseType(type);
 
-                    // Pre-fill default validity
                     if (typeof data.default_valid !== 'undefined') {
                         $('#lflow-valid').val(data.default_valid);
                     }
@@ -87,6 +88,14 @@
                         $('#lflow-valid').val(data.default_valid);
                     }
                 });
+            });
+        },
+
+        // ── Manual type change ────────────────────────────────────────────────
+
+        bindTypeChange: function () {
+            $(document).on('change', '#lflow-license-type', function () {
+                LicenseForm.showFieldGroup($(this).val());
             });
         },
 
