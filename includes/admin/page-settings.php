@@ -369,14 +369,25 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                     </td>
                 </tr>
 
-                <!-- WhatsApp number -->
+                <!-- WhatsApp number(s) -->
                 <tr>
-                    <th><label for="lflow_stock_alert_whatsapp"><?php esc_html_e( 'Numéro WhatsApp alerte', 'licenceflow' ); ?></label></th>
+                    <th><label for="lflow_stock_alert_whatsapp"><?php esc_html_e( 'Numéro(s) WhatsApp alerte', 'licenceflow' ); ?></label></th>
                     <td>
                         <input type="text" id="lflow_stock_alert_whatsapp" name="lflow_stock_alert_whatsapp"
                                value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp', '' ) ); ?>"
-                               style="width:200px;" placeholder="+22600000000">
-                        <p class="description"><?php esc_html_e( 'Format international (ex : +22654819666). Laisser vide pour désactiver les alertes WhatsApp.', 'licenceflow' ); ?></p>
+                               style="width:360px;" placeholder="+22654819666, +22670000000">
+                        <p class="description"><?php esc_html_e( 'Format international. Plusieurs numéros séparés par des virgules. Laisser vide pour désactiver les alertes WhatsApp.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- WhatsApp country code -->
+                <tr>
+                    <th><label for="lflow_stock_alert_whatsapp_country"><?php esc_html_e( 'Code pays WhatsApp', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="text" id="lflow_stock_alert_whatsapp_country" name="lflow_stock_alert_whatsapp_country"
+                               value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp_country', 'BF' ) ); ?>"
+                               style="width:80px;" maxlength="3" placeholder="BF">
+                        <p class="description"><?php esc_html_e( 'Code ISO 3166-1 alpha-2 (ex : BF, CI, SN, FR). Utilisé par WootsApp Notifier pour normaliser les numéros locaux.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
 

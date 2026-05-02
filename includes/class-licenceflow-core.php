@@ -148,6 +148,9 @@ class LicenceFlow_Core {
             if ( $stock_sync ) {
                 $this->sync_product_stock( $product_id, $variation_id );
             }
+
+            // Let registered listeners (e.g. stock notifier) react to each delivered item
+            do_action( 'lflow_stock_after_delivery', $product_id, $variation_id );
         }
 
         if ( empty( $all_ids ) ) return;
@@ -205,6 +208,8 @@ class LicenceFlow_Core {
 
             LicenceFlow_License_DB::update( $lid, $update );
             $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+            // Notify listeners that stock was restored (e.g. stock notifier resets alert flag)
+            do_action( 'lflow_stock_after_restore', (int) $license['product_id'], (int) $license['variation_id'] );
         }
     }
 

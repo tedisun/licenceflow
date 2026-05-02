@@ -61,11 +61,12 @@ class LicenceFlow_Settings {
             'lflow_api_key'                => '',
             'lflow_private_api_key'        => '',
             // Stock alerts
-            'lflow_stock_alert_enabled'     => '',
-            'lflow_stock_alert_threshold'   => 2,
-            'lflow_stock_alert_emails'      => '',
-            'lflow_stock_alert_whatsapp'    => '+22654819666',
-            'lflow_stock_alert_webhook_url' => '',
+            'lflow_stock_alert_enabled'          => '',
+            'lflow_stock_alert_threshold'        => 2,
+            'lflow_stock_alert_emails'           => '',
+            'lflow_stock_alert_whatsapp'         => '+22654819666',
+            'lflow_stock_alert_whatsapp_country' => 'BF',
+            'lflow_stock_alert_webhook_url'      => '',
         );
     }
 
@@ -130,7 +131,7 @@ class LicenceFlow_Settings {
         register_setting( 'lflow_settings_order_status', 'lflow_send_when_processing', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
 
         // Stock alerts tab
-        $stock_alert_options = array( 'lflow_stock_alert_enabled', 'lflow_stock_alert_threshold', 'lflow_stock_alert_whatsapp' );
+        $stock_alert_options = array( 'lflow_stock_alert_enabled', 'lflow_stock_alert_threshold', 'lflow_stock_alert_whatsapp', 'lflow_stock_alert_whatsapp_country' );
         foreach ( $stock_alert_options as $opt ) {
             register_setting( 'lflow_settings_stock_alerts', $opt, array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         }

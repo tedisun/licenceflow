@@ -55,6 +55,7 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
         $id = LicenceFlow_License_DB::insert( $data );
         if ( $id ) {
             LicenceFlow_Core::get_instance()->sync_product_stock( $data['product_id'], $data['variation_id'] );
+            do_action( 'lflow_stock_after_restore', $data['product_id'], $data['variation_id'] );
             wp_redirect( LicenceFlow_Admin::licenses_url( array( 'added' => 1 ) ) );
             exit;
         }

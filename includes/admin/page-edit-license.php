@@ -50,6 +50,8 @@ if ( isset( $_POST['lflow_save_license_nonce'] ) ) {
 
         $ok = LicenceFlow_License_DB::update( $license_id, $data );
         if ( $ok ) {
+            LicenceFlow_Core::get_instance()->sync_product_stock( $data['product_id'], $data['variation_id'] );
+            do_action( 'lflow_stock_after_restore', $data['product_id'], $data['variation_id'] );
             $license = LicenceFlow_License_DB::get( $license_id );
             $notice  = array( 'type' => 'updated', 'msg' => __( 'Licence mise à jour.', 'licenceflow' ) );
         } else {

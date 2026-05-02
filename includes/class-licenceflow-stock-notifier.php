@@ -5,15 +5,24 @@
  * Sends email and/or WhatsApp notifications when a product's available
  * license stock drops to or below the configured threshold.
  *
- * State is tracked per product/variation via WP options
- * (lflow_sa_{product_id}_{variation_id}) so each threshold-crossing
- * triggers exactly one alert; the flag is cleared as soon as stock
- * recovers above the threshold.
+ * Architecture:
+ *  - Hooks into custom actions fired by LicenceFlow_Core and admin pages,
+ *    so this class never needs to be called directly outside of lflow_init().
+ *  - lflow_stock_after_delivery(product_id, variation_id) → maybe_notify()
+ *  - lflow_stock_after_restore(product_id, variation_id)  → maybe_reset()
+ *
+ * State storage:
+ *  - Single WP option 'lflow_stock_alert_state' (array keyed by "{pid}_{vid}")
+ *    so wp_options stays clean regardless of product count.
+ *
+ * Threshold change:
+ *  - Changing the global threshold clears all flags so the next delivery
+ *    re-evaluates against the new value.
  *
  * WhatsApp delivery priority:
- *  1. Filter lflow_whatsapp_send (third-party override)
- *  2. WootsApp Notifier function/class (if active)
- *  3. External webhook URL (n8n, etc.)
+ *  1. Filter 'lflow_whatsapp_send' (third-party override, return true to stop)
+ *  2. WTAN_Api::send() + WTAN_Logger (WootsApp Notifier, if active)
+ *  3. External webhook URL — payload: {"phone":"…","message":"…"}
  *
  * @package LicenceFlow
  * @author  Tedisun SARL
@@ -27,7 +36,15 @@ class LicenceFlow_Stock_Notifier {
     private static ?self $instance = null;
 
     private function __construct() {
+        // Core WooCommerce delivery / restore events
+        add_action( 'lflow_stock_after_delivery', array( $this, 'maybe_notify' ), 10, 2 );
+        add_action( 'lflow_stock_after_restore',  array( $this, 'maybe_reset' ),  10, 2 );
+
+        // Daily cron — catches stock drops from expirations
         add_action( 'lflow_daily_cron', array( $this, 'cron_check' ) );
+
+        // Clear all flags when the global threshold changes
+        add_action( 'update_option_lflow_stock_alert_threshold', array( $this, 'clear_all_state' ) );
     }
 
     public static function get_instance(): self {
@@ -40,9 +57,9 @@ class LicenceFlow_Stock_Notifier {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Called after every real license delivery.
-     * Sends an alert if stock is at/below threshold and no alert was already
-     * sent for this threshold crossing. Resets the flag if stock is above.
+     * Called after every license delivery (via lflow_stock_after_delivery action).
+     * Sends an alert if stock is at/below threshold and no alert was already sent
+     * for this crossing. Resets the flag if stock has recovered above threshold.
      */
     public function maybe_notify( int $product_id, int $variation_id = 0 ): void {
         if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_alert_enabled' ) ) {
@@ -54,25 +71,25 @@ class LicenceFlow_Stock_Notifier {
 
         $stock     = LicenceFlow_License_DB::count_available( $product_id, $variation_id );
         $threshold = $this->get_effective_threshold( $product_id );
-        $state_key = $this->state_key( $product_id, $variation_id );
+        $key       = $this->state_key( $product_id, $variation_id );
 
         if ( $stock <= $threshold ) {
             if ( ! $this->product_has_licenses( $product_id, $variation_id ) ) {
                 return; // Not managed by LicenceFlow — skip
             }
-            if ( ! get_option( $state_key ) ) {
+            if ( ! $this->is_notified( $key ) ) {
                 $this->send_notifications( $product_id, $variation_id, $stock );
-                update_option( $state_key, 1, false );
+                $this->mark_notified( $key );
             }
         } else {
-            delete_option( $state_key ); // Stock recovered — reset for next crossing
+            $this->clear_notified( $key ); // Stock recovered — reset for next crossing
         }
     }
 
     /**
-     * Called when new licenses are added (create/bulk).
-     * Resets the "already notified" flag so the next threshold-crossing
-     * triggers a fresh alert.
+     * Called when licenses are added or restored (via lflow_stock_after_restore action).
+     * Clears the "already notified" flag when stock goes above the threshold so the
+     * next threshold-crossing triggers a fresh alert.
      */
     public function maybe_reset( int $product_id, int $variation_id = 0 ): void {
         if ( $product_id <= 0 ) {
@@ -81,13 +98,22 @@ class LicenceFlow_Stock_Notifier {
         $stock     = LicenceFlow_License_DB::count_available( $product_id, $variation_id );
         $threshold = $this->get_effective_threshold( $product_id );
         if ( $stock > $threshold ) {
-            delete_option( $this->state_key( $product_id, $variation_id ) );
+            $this->clear_notified( $this->state_key( $product_id, $variation_id ) );
         }
     }
 
     /**
+     * Clears all alert state flags.
+     * Called when the global threshold option changes so every product
+     * is re-evaluated against the new value on the next delivery.
+     */
+    public function clear_all_state(): void {
+        delete_option( 'lflow_stock_alert_state' );
+    }
+
+    /**
      * Daily cron callback — scans all known product/variation combos.
-     * Catches expirations that silently reduce stock without going through deliver.
+     * Covers stock drops caused by license expirations (no delivery involved).
      */
     public function cron_check(): void {
         if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_alert_enabled' ) ) {
@@ -198,8 +224,13 @@ class LicenceFlow_Stock_Notifier {
     // ── WhatsApp ──────────────────────────────────────────────────────────────
 
     private function send_whatsapp( string $label, int $stock, string $admin_url ): void {
-        $raw_phone = trim( LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp', '' ) );
-        if ( empty( $raw_phone ) ) {
+        $raw_phones = LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp', '' );
+        if ( empty( trim( $raw_phones ) ) ) {
+            return;
+        }
+
+        $phones = array_filter( array_map( 'trim', explode( ',', $raw_phones ) ) );
+        if ( empty( $phones ) ) {
             return;
         }
 
@@ -210,15 +241,25 @@ class LicenceFlow_Stock_Notifier {
             $admin_url
         );
 
+        foreach ( $phones as $raw_phone ) {
+            $this->dispatch_whatsapp( $raw_phone, $message );
+        }
+    }
+
+    private function dispatch_whatsapp( string $raw_phone, string $message ): void {
         // Allow third-party plugins to fully handle sending (return true to short-circuit)
         $handled = apply_filters( 'lflow_whatsapp_send', false, $raw_phone, $message );
         if ( $handled ) {
             return;
         }
 
-        // WootsApp Notifier (WTAN) — uses Evolution API credentials stored in WP options
+        // WootsApp Notifier (WTAN) — credentials read from WP options automatically
         if ( class_exists( 'WTAN_Api' ) ) {
-            $phone = class_exists( 'WTAN_Phone' ) ? WTAN_Phone::normalize( $raw_phone, 'BF' ) : $raw_phone;
+            $country = LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp_country', 'BF' );
+            $phone   = ( class_exists( 'WTAN_Phone' ) && $country )
+                ? WTAN_Phone::normalize( $raw_phone, strtoupper( $country ) )
+                : $raw_phone;
+
             if ( $phone ) {
                 $result = WTAN_Api::send( $phone, $message );
                 if ( class_exists( 'WTAN_Logger' ) ) {
@@ -235,19 +276,40 @@ class LicenceFlow_Stock_Notifier {
                 'body'     => wp_json_encode( array( 'phone' => $raw_phone, 'message' => $message ) ),
                 'headers'  => array( 'Content-Type' => 'application/json' ),
                 'timeout'  => 5,
-                'blocking' => false, // fire-and-forget — never block the delivery response
+                'blocking' => false, // fire-and-forget — never block delivery
             ) );
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── State storage (single WP option, array) ───────────────────────────────
 
-    /**
-     * Returns the WP option key used to track the "already notified" state.
-     */
     private function state_key( int $product_id, int $variation_id ): string {
-        return 'lflow_sa_' . $product_id . '_' . $variation_id;
+        return $product_id . '_' . $variation_id;
     }
+
+    private function get_state(): array {
+        return (array) get_option( 'lflow_stock_alert_state', array() );
+    }
+
+    private function is_notified( string $key ): bool {
+        return isset( $this->get_state()[ $key ] );
+    }
+
+    private function mark_notified( string $key ): void {
+        $state         = $this->get_state();
+        $state[ $key ] = 1;
+        update_option( 'lflow_stock_alert_state', $state, false );
+    }
+
+    private function clear_notified( string $key ): void {
+        $state = $this->get_state();
+        if ( isset( $state[ $key ] ) ) {
+            unset( $state[ $key ] );
+            update_option( 'lflow_stock_alert_state', $state, false );
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
      * Per-product threshold override (option lflow_stock_alert_threshold_{product_id})
@@ -283,9 +345,8 @@ class LicenceFlow_Stock_Notifier {
     }
 
     /**
-     * Returns true if LicenceFlow has at least one license record for this
-     * product/variation (any status). Products with zero records are not
-     * managed by LicenceFlow and should not trigger alerts.
+     * Returns true if LicenceFlow has at least one license record (any status)
+     * for this product/variation. Products with zero records are not managed.
      */
     private function product_has_licenses( int $product_id, int $variation_id ): bool {
         global $wpdb;
