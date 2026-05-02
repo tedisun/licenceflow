@@ -176,6 +176,7 @@ class LicenceFlow_API_V1 {
         }
 
         $this->maybe_sync_stock( $data['product_id'], $data['variation_id'] );
+        LicenceFlow_Stock_Notifier::get_instance()->maybe_reset( $data['product_id'], $data['variation_id'] );
 
         $license = LicenceFlow_License_DB::get( $id );
         return new WP_REST_Response( $this->format_license( $license, false ), 201 );
@@ -315,6 +316,7 @@ class LicenceFlow_API_V1 {
         $order->save();
 
         $this->maybe_sync_stock( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) );
+        LicenceFlow_Stock_Notifier::get_instance()->maybe_notify( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) );
 
         return new WP_REST_Response( array(
             'delivered'  => true,
@@ -413,12 +415,14 @@ class LicenceFlow_API_V1 {
             $created[] = array( 'index' => $index, 'license_id' => $id, 'product_id' => $data['product_id'], 'variation_id' => $data['variation_id'] );
         }
 
-        // Sync stock once per unique product/variation pair
+        // Sync stock and reset alert flag once per unique product/variation pair.
+        // No notifications on bulk import — only maybe_reset to clear stale "already sent" flags.
         $synced = array();
         foreach ( $created as $entry ) {
             $key = $entry['product_id'] . '_' . $entry['variation_id'];
             if ( ! isset( $synced[ $key ] ) ) {
                 $this->maybe_sync_stock( $entry['product_id'], $entry['variation_id'] );
+                LicenceFlow_Stock_Notifier::get_instance()->maybe_reset( $entry['product_id'], $entry['variation_id'] );
                 $synced[ $key ] = true;
             }
         }

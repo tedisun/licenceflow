@@ -60,6 +60,12 @@ class LicenceFlow_Settings {
             // API
             'lflow_api_key'                => '',
             'lflow_private_api_key'        => '',
+            // Stock alerts
+            'lflow_stock_alert_enabled'     => '',
+            'lflow_stock_alert_threshold'   => 2,
+            'lflow_stock_alert_emails'      => '',
+            'lflow_stock_alert_whatsapp'    => '+22654819666',
+            'lflow_stock_alert_webhook_url' => '',
         );
     }
 
@@ -122,6 +128,14 @@ class LicenceFlow_Settings {
         // Order status tab
         register_setting( 'lflow_settings_order_status', 'lflow_send_when_completed',  array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         register_setting( 'lflow_settings_order_status', 'lflow_send_when_processing', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+
+        // Stock alerts tab
+        $stock_alert_options = array( 'lflow_stock_alert_enabled', 'lflow_stock_alert_threshold', 'lflow_stock_alert_whatsapp' );
+        foreach ( $stock_alert_options as $opt ) {
+            register_setting( 'lflow_settings_stock_alerts', $opt, array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+        }
+        register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_emails',      array( 'sanitize_callback' => array( $this, 'sanitize_emails_list' ) ) );
+        register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_webhook_url', array( 'sanitize_callback' => array( $this, 'sanitize_url_option' ) ) );
     }
 
     // ── Enc key migration ─────────────────────────────────────────────────────
@@ -207,5 +221,23 @@ class LicenceFlow_Settings {
             return absint( $value );
         }
         return sanitize_text_field( $value );
+    }
+
+    /**
+     * Sanitize a comma-separated list of email addresses.
+     * Filters out invalid entries; returns clean comma-separated string.
+     */
+    public function sanitize_emails_list( string $value ): string {
+        $emails = array_filter( array_map( 'trim', explode( ',', $value ) ) );
+        $valid  = array_filter( $emails, 'is_email' );
+        return implode( ', ', $valid );
+    }
+
+    /**
+     * Sanitize a URL option — strips unsafe protocols, returns empty string on invalid.
+     */
+    public function sanitize_url_option( string $value ): string {
+        $value = esc_url_raw( trim( $value ) );
+        return filter_var( $value, FILTER_VALIDATE_URL ) ? $value : '';
     }
 }

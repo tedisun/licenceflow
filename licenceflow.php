@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.3.3
+ * Version:     1.4.0
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.3.3' );
+define( 'LFLOW_VERSION',   '1.4.0' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -68,6 +68,7 @@ function lflow_init() {
     require_once LFLOW_PATH . 'includes/class-licenceflow-product-config.php';
     require_once LFLOW_PATH . 'includes/class-licenceflow-core.php';
     require_once LFLOW_PATH . 'includes/class-licenceflow-updater.php';
+    require_once LFLOW_PATH . 'includes/class-licenceflow-stock-notifier.php';
 
     if ( is_admin() ) {
         require_once LFLOW_PATH . 'includes/admin/class-licenceflow-admin.php';
@@ -80,6 +81,7 @@ function lflow_init() {
     LicenceFlow_Settings::get_instance();
     LicenceFlow_Core::get_instance();
     LicenceFlow_Updater::get_instance();
+    LicenceFlow_Stock_Notifier::get_instance();
 
     if ( is_admin() ) {
         LicenceFlow_Admin::get_instance();
@@ -261,6 +263,12 @@ function lflow_set_defaults() {
         'lflow_enc_iv'                   => LFLOW_DEFAULT_ENC_IV,
         'lflow_api_key'                  => wp_generate_password( 20, false ),
         'lflow_private_api_key'          => wp_generate_uuid4(),
+        // Stock alerts
+        'lflow_stock_alert_enabled'      => '',
+        'lflow_stock_alert_threshold'    => 2,
+        'lflow_stock_alert_emails'       => '',
+        'lflow_stock_alert_whatsapp'     => '+22654819666',
+        'lflow_stock_alert_webhook_url'  => '',
     );
     foreach ( $defaults as $key => $value ) {
         if ( false === get_option( $key ) ) {

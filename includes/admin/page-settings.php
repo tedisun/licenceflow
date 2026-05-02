@@ -12,10 +12,11 @@ defined( 'ABSPATH' ) || exit;
 
 $current_tab = sanitize_key( $_GET['tab'] ?? 'general' );
 $tabs = array(
-    'general'      => __( 'Général', 'licenceflow' ),
-    'encryption'   => __( 'Chiffrement', 'licenceflow' ),
+    'general'       => __( 'Général', 'licenceflow' ),
+    'encryption'    => __( 'Chiffrement', 'licenceflow' ),
     'notifications' => __( 'Notifications', 'licenceflow' ),
-    'order-status' => __( 'Statuts de commande', 'licenceflow' ),
+    'order-status'  => __( 'Statuts de commande', 'licenceflow' ),
+    'stock-alerts'  => __( 'Alertes stock', 'licenceflow' ),
 );
 $base_url = admin_url( 'admin.php?page=lflow-settings' );
 ?>
@@ -312,6 +313,88 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                         <p class="description"><?php esc_html_e( 'Recommandé : activer "Terminée" pour les paiements nécessitant une vérification, ou "En cours de traitement" pour les paiements instantanés (CB, PayPal).', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
+            </table>
+
+            <?php submit_button(); ?>
+        </form>
+    </div>
+
+
+    <!-- ── Tab: Alertes stock ────────────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-stock-alerts">
+        <form method="post" action="options.php">
+            <?php settings_fields( 'lflow_settings_stock_alerts' ); ?>
+
+            <table class="form-table">
+
+                <!-- Global on/off -->
+                <tr>
+                    <th><?php esc_html_e( 'Alertes stock', 'licenceflow' ); ?></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="lflow_stock_alert_enabled" value="on"
+                                <?php checked( LicenceFlow_Settings::get( 'lflow_stock_alert_enabled' ), 'on' ); ?>>
+                            <?php esc_html_e( 'Activer les alertes de stock bas', 'licenceflow' ); ?>
+                        </label>
+                        <p class="description"><?php esc_html_e( 'Envoie une notification email et/ou WhatsApp dès que le stock disponible d\'un produit passe sous le seuil configuré.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- Threshold -->
+                <tr>
+                    <th><label for="lflow_stock_alert_threshold"><?php esc_html_e( 'Seuil de stock bas', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="number" id="lflow_stock_alert_threshold" name="lflow_stock_alert_threshold"
+                               value="<?php echo absint( LicenceFlow_Settings::get( 'lflow_stock_alert_threshold', 2 ) ); ?>"
+                               min="0" max="9999" style="width:80px;">
+                        <?php esc_html_e( 'unité(s) disponible(s)', 'licenceflow' ); ?>
+                        <p class="description">
+                            <?php esc_html_e( 'Une alerte est envoyée quand le stock atteint ou passe sous cette valeur. Valeur 0 = alerte uniquement en rupture complète.', 'licenceflow' ); ?>
+                            <br>
+                            <?php esc_html_e( 'Seuil par produit : enregistrez l\'option WordPress', 'licenceflow' ); ?>
+                            <code>lflow_stock_alert_threshold_{product_id}</code>
+                            <?php esc_html_e( 'pour surcharger la valeur globale.', 'licenceflow' ); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <!-- Alert emails -->
+                <tr>
+                    <th><label for="lflow_stock_alert_emails"><?php esc_html_e( 'Email(s) d\'alerte stock', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="text" id="lflow_stock_alert_emails" name="lflow_stock_alert_emails"
+                               value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_stock_alert_emails', '' ) ); ?>"
+                               style="width:400px;" placeholder="admin@exemple.com, stock@exemple.com">
+                        <p class="description"><?php esc_html_e( 'Adresses séparées par des virgules. Si vide, l\'email d\'alerte général est utilisé.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- WhatsApp number -->
+                <tr>
+                    <th><label for="lflow_stock_alert_whatsapp"><?php esc_html_e( 'Numéro WhatsApp alerte', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="text" id="lflow_stock_alert_whatsapp" name="lflow_stock_alert_whatsapp"
+                               value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp', '' ) ); ?>"
+                               style="width:200px;" placeholder="+22600000000">
+                        <p class="description"><?php esc_html_e( 'Format international (ex : +22654819666). Laisser vide pour désactiver les alertes WhatsApp.', 'licenceflow' ); ?></p>
+                    </td>
+                </tr>
+
+                <!-- Webhook URL -->
+                <tr>
+                    <th><label for="lflow_stock_alert_webhook_url"><?php esc_html_e( 'Webhook WhatsApp URL', 'licenceflow' ); ?></label></th>
+                    <td>
+                        <input type="url" id="lflow_stock_alert_webhook_url" name="lflow_stock_alert_webhook_url"
+                               value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_stock_alert_webhook_url', '' ) ); ?>"
+                               style="width:400px;" placeholder="https://n8n.exemple.com/webhook/xxxx">
+                        <p class="description">
+                            <?php esc_html_e( 'Utilisé si WootsApp Notifier n\'est pas installé. LicenceFlow appellera cet endpoint avec le payload JSON :', 'licenceflow' ); ?>
+                            <code>{"phone":"+226…","message":"🔴 Stock bas…"}</code><br>
+                            <?php esc_html_e( 'Idéal pour un workflow n8n, Make ou Zapier.', 'licenceflow' ); ?>
+                        </p>
+                    </td>
+                </tr>
+
             </table>
 
             <?php submit_button(); ?>
