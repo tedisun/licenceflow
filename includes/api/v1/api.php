@@ -59,7 +59,7 @@ class LicenceFlow_API_V1 {
                 'permission_callback' => array( $this, 'check_api_key' ),
                 'args'                => array_merge(
                     array( 'id' => array( 'required' => true, 'type' => 'integer', 'minimum' => 1 ) ),
-                    $this->create_args( false )
+                    $this->update_args()
                 ),
             ),
             array(
@@ -223,11 +223,20 @@ class LicenceFlow_API_V1 {
             $max   = isset( $data['delivre_x_times'] ) ? $data['delivre_x_times'] : (int) ( $license['delivre_x_times'] ?? 1 );
             $data['remaining_delivre_x_times'] = min( max( 0, absint( $request->get_param( 'remaining_delivre_x_times' ) ) ), $max );
         }
+
+        // Resolve effective type: explicit from payload > existing in DB.
+        // Must be computed before license_key so serialization uses the right type.
+        $effective_type = $license['license_type'] ?? 'key';
+        if ( null !== $request->get_param( 'license_type' ) ) {
+            $effective_type       = sanitize_key( $request->get_param( 'license_type' ) );
+            $data['license_type'] = $effective_type;
+        }
+
         if ( null !== $request->get_param( 'license_key' ) ) {
-            $type  = sanitize_key( $request->get_param( 'license_type' ) ?: ( $license['license_type'] ?? 'key' ) );
-            $clean = LicenceFlow_Security::get_instance()->sanitize_license_field( $request->get_param( 'license_key' ), $type );
-            $data['license_key']  = lflow_serialize_license_value( $clean, $type );
-            $data['license_type'] = $type;
+            $clean               = LicenceFlow_Security::get_instance()->sanitize_license_field( $request->get_param( 'license_key' ), $effective_type );
+            $data['license_key'] = lflow_serialize_license_value( $clean, $effective_type );
+            // Always persist the type alongside the key for consistency
+            $data['license_type'] = $effective_type;
         }
 
         if ( empty( $data ) ) {
@@ -509,18 +518,38 @@ class LicenceFlow_API_V1 {
         );
     }
 
-    private function create_args( bool $required = true ): array {
+    private function create_args(): array {
         return array(
-            'product_id'      => array( 'type' => 'integer', 'required' => $required, 'minimum' => 0 ),
+            'product_id'      => array( 'type' => 'integer', 'required' => true, 'minimum' => 0 ),
             'variation_id'    => array( 'type' => 'integer', 'default' => 0 ),
             'license_type'    => array( 'type' => 'string', 'default' => 'key', 'enum' => array( 'key', 'account', 'link', 'code' ) ),
-            'license_key'     => array( 'required' => $required ),
+            'license_key'     => array( 'required' => true ),
             'license_status'  => array( 'type' => 'string', 'default' => 'available' ),
             'expiration_date' => array( 'type' => 'string', 'default' => '' ),
             'valid'           => array( 'type' => 'integer', 'default' => 0, 'minimum' => 0 ),
             'delivre_x_times' => array( 'type' => 'integer', 'default' => 1, 'minimum' => 1 ),
             'license_note'    => array( 'type' => 'string', 'default' => '' ),
             'admin_notes'     => array( 'type' => 'string', 'default' => '' ),
+        );
+    }
+
+    /**
+     * Args for PUT /licenses/{id} — no defaults so absent fields return null
+     * and are treated as "preserve existing value".
+     */
+    private function update_args(): array {
+        return array(
+            'product_id'                => array( 'type' => 'integer', 'minimum' => 0 ),
+            'variation_id'              => array( 'type' => 'integer', 'minimum' => 0 ),
+            'license_type'              => array( 'type' => 'string', 'enum' => array( 'key', 'account', 'link', 'code' ) ),
+            'license_key'               => array(),
+            'license_status'            => array( 'type' => 'string' ),
+            'expiration_date'           => array( 'type' => 'string' ),
+            'valid'                     => array( 'type' => 'integer', 'minimum' => 0 ),
+            'delivre_x_times'           => array( 'type' => 'integer', 'minimum' => 1 ),
+            'remaining_delivre_x_times' => array( 'type' => 'integer', 'minimum' => 0 ),
+            'license_note'              => array( 'type' => 'string' ),
+            'admin_notes'               => array( 'type' => 'string' ),
         );
     }
 }
