@@ -1,5 +1,51 @@
 # Changelog — LicenceFlow
 
+## [1.4.2] — 2026-05-05
+
+### Corrigé
+- **`PUT /licenses/{id}` écrasait le `license_type`** — `create_args()` déclarait `license_type` avec `default: 'key'`, donc WP REST injectait toujours `'key'` même quand le champ était absent du payload. Le fallback sur le type existant en DB ne s'activait jamais. Séparation en `update_args()` sans défauts : un champ absent retourne `null` et est traité comme "conserver la valeur existante".
+- **`license_type` devient un champ indépendamment modifiable** sur `PUT` — il n'est plus seulement traitable comme effet de bord du champ `license_key`.
+
+## [1.4.1] — 2026-05-04
+
+### Ajouté
+- **Code pays WhatsApp configurable** — nouvel option `lflow_stock_alert_whatsapp_country` (défaut `BF`) dans Réglages > Alertes stock. Utilisé par `WTAN_Phone::normalize()` pour normaliser les numéros locaux.
+- **Numéros WhatsApp multiples** — le champ accepte plusieurs numéros séparés par des virgules.
+- **Alertes stock sur les pages admin** — ajouter ou modifier une licence depuis l'interface admin déclenche maintenant `lflow_stock_after_restore` (réinitialise le flag "déjà notifié" si le stock remonte).
+- **Sync stock sur la page d'édition** — `page-edit-license.php` appelle désormais `sync_product_stock()` après une mise à jour réussie (était manquant).
+
+### Corrigé
+- **État alertes en tableau unique** — les flags "déjà notifié" étaient stockés dans des options WP individuelles (une par produit). Remplacés par un seul tableau dans l'option `lflow_stock_alert_state` (pas de pollution de wp_options).
+- **Invalidation des flags au changement de seuil** — changer le seuil global dans les réglages efface maintenant tous les flags via le hook `update_option_lflow_stock_alert_threshold`.
+
+## [1.4.0] — 2026-05-03
+
+### Ajouté
+- **Système d'alertes stock** — email et/ou WhatsApp quand le stock disponible d'un produit passe sous le seuil configuré. Une seule alerte par franchissement de seuil ; le flag est réinitialisé quand le stock remonte.
+- `LicenceFlow_Stock_Notifier` — nouveau singleton qui écoute les actions `lflow_stock_after_delivery` et `lflow_stock_after_restore` tirées par le Core.
+- Actions custom `lflow_stock_after_delivery` et `lflow_stock_after_restore` dans `class-licenceflow-core.php` — permettent à des composants tiers de réagir aux livraisons et restitutions sans modifier le Core.
+- Onglet "Alertes stock" dans Réglages — toggle global, seuil, adresses email, numéro(s) WhatsApp, URL webhook.
+- Support WootsApp Notifier (WTAN) : `WTAN_Phone::normalize()`, `WTAN_Api::send()`, `WTAN_Logger::insert()`.
+- Webhook fallback pour n8n / Make / Zapier — payload `{"phone":"…","message":"…"}`.
+- Filtre `lflow_whatsapp_send` pour override complet par un plugin tiers.
+- Cron quotidien `lflow_daily_cron` étendu : scan de toutes les paires produit/variation pour détecter les baisses de stock dues aux expirations.
+- Seuil par produit via option WP `lflow_stock_alert_threshold_{product_id}`.
+
+## [1.3.3] — 2026-04-30
+
+### Corrigé
+- **Double affichage des variations dans le formulaire "Ajouter une licence"** — deux gestionnaires d'événements distincts (`admin.js::bindAddLicenseForm` et `license-form.js::bindProductChange`) écoutaient tous deux le changement de `#lflow-product-id` et déclenchaient chacun un appel AJAX. Les options de variation étaient donc ajoutées deux fois. Suppression de `bindAddLicenseForm()` dans `admin.js` — `license-form.js` est la seule source de vérité pour ce formulaire.
+
+## [1.3.2] — 2026-04-29
+
+### Corrigé
+- **Race condition XHR variations** — si l'utilisateur changeait rapidement de produit, la réponse AJAX d'un ancien produit pouvait s'ajouter après la re-initialisation du select. Ajout d'un abort XHR + re-clear inside callback dans `license-form.js`.
+
+## [1.3.1] — 2026-04-28
+
+### Corrigé
+- **Type de licence non détecté automatiquement** — le formulaire d'ajout de licence n'appliquait pas le type configuré sur le produit lors du changement de produit dans le select. Le champ `license_type` reste modifiable mais est désormais pré-rempli depuis la config produit via AJAX.
+
 ## [1.3.0] — 2026-04-17
 
 ### Ajouté
