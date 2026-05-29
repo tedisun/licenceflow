@@ -188,6 +188,15 @@ $enc_warning     = LicenceFlow_Settings::has_default_encryption_keys();
             <code>X-LicenceFlow-API-Key</code><?php esc_html_e( '. Clé configurable dans Réglages → Général.', 'licenceflow' ); ?>
         </p>
 
+        <h3 style="font-size:.9rem; margin-bottom:4px;"><?php esc_html_e( 'Vérification en Ligne & Audit Microsoft', 'licenceflow' ); ?></h3>
+        <p style="margin-top:0; font-size:.875rem; color:#3c434a;">
+            <?php esc_html_e( 'LicenceFlow intègre un système d\'audit et de diagnostic en temps réel pour vos clés de produit Microsoft (format 5x5 XXXXX-XXXXX-XXXXX-XXXXX-XXXXX) raccordé à votre micro-service de validation. Vous disposez de plusieurs outils :', 'licenceflow' ); ?><br>
+            <?php esc_html_e( '• 🔍 Bouton « Tester » unitaire : Dans la liste des licences, cliquez sur l\'icône de loupe à côté d\'une clé pour interroger instantanément les serveurs d\'activation Microsoft. Son statut, ses activations restantes et son produit précis s\'affichent en AJAX. Si la clé est bloquée, elle est automatiquement marquée comme « Inactive » et retirée du stock WooCommerce.', 'licenceflow' ); ?><br>
+            <?php esc_html_e( '• ⚙️ Actions de groupe : Sélectionnez plusieurs clés dans la liste et choisissez « Vérifier en ligne » dans les actions groupées pour tester l\'intégralité du lot en un clic.', 'licenceflow' ); ?><br>
+            <?php esc_html_e( '• ⚠️ Validation à l\'import (TXT/CSV) : Cochez la case « Vérifier en ligne » lors de l\'importation de vos lots. Les clés mortes ou bloquées sont directement importées avec le statut « Inactif » avec une note d\'erreur administrative.', 'licenceflow' ); ?><br>
+            <?php esc_html_e( '• 🌙 Audit quotidien automatique : Un worker en arrière-plan (cron) s\'exécute tous les jours à 18h00 pour scanner toutes les licences disponibles en stock. Si des clés bloquées sont détectées, elles sont désactivées, le stock WooCommerce est mis à jour en temps réel et un rapport d\'alerte vous est envoyé par e-mail.', 'licenceflow' ); ?>
+        </p>
+
     </div>
 
 </div>
