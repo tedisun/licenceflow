@@ -627,8 +627,8 @@ class LicenceFlow_Core {
 
                 $res = $results_by_key[ $plain_key ];
 
-                // If key is blocked
-                if ( isset( $res['valid'] ) && $res['valid'] === false ) {
+                // If key is blocked (ignore temporary API connection errors or timeouts)
+                if ( isset( $res['status'] ) && $res['status'] === 'blocked' ) {
                     $row = $item['row'];
                     $msg = $res['message'] ?? 'Bloquée par Microsoft.';
                     $date = current_time( 'Y-m-d H:i:s' );

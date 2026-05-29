@@ -592,11 +592,9 @@ class LicenceFlow_Admin {
                     $res = $results_by_key[ $plain_key ];
                     $checked++;
 
-                    $valid = ! empty( $res['valid'] );
+                    $status = $res['status'] ?? 'unknown';
 
-                    if ( $valid ) {
-                        $valid_count++;
-                    } else {
+                    if ( $status === 'blocked' ) {
                         $blocked_count++;
                         $row = $item['row'];
                         $msg = $res['message'] ?? 'Bloquée par Microsoft.';
@@ -619,6 +617,10 @@ class LicenceFlow_Admin {
                             'product_id'   => (int) $row['product_id'],
                             'variation_id' => (int) $row['variation_id'],
                         );
+                    } elseif ( $status === 'error' ) {
+                        $failures++;
+                    } else {
+                        $valid_count++;
                     }
                 }
             }
@@ -830,7 +832,6 @@ class LicenceFlow_Admin {
         $result = $data['results'][0];
 
         // Format result message
-        $valid = ! empty( $result['valid'] );
         $product_name = $result['product_name'] ?? '';
         $status = $result['status'] ?? 'unknown';
         $error_code = $result['error_code'] ?? '';
@@ -838,17 +839,7 @@ class LicenceFlow_Admin {
         $msg = $result['message'] ?? '';
 
         $formatted_msg = '';
-        if ( $valid ) {
-            $formatted_msg = sprintf(
-                /* translators: 1: product name, 2: message */
-                __( 'Clé Valide : %1$s. %2$s', 'licenceflow' ),
-                $product_name,
-                $msg
-            );
-            if ( $remaining !== null ) {
-                $formatted_msg .= ' (' . sprintf( __( '%d activations restantes', 'licenceflow' ), $remaining ) . ')';
-            }
-        } else {
+        if ( $status === 'blocked' ) {
             $formatted_msg = sprintf(
                 /* translators: 1: message, 2: error code */
                 __( 'Clé Bloquée / Inactive : %1$s (Code: %2$s)', 'licenceflow' ),
@@ -856,7 +847,7 @@ class LicenceFlow_Admin {
                 $error_code
             );
 
-            // Automatically deactivate key if it is not valid
+            // Automatically deactivate key if it is blocked
             $date = current_time( 'Y-m-d H:i:s' );
             $admin_note = trim( $license['admin_notes'] ?? '' );
             $new_note = "[Test direct $date] Bloquée par Microsoft : $msg (Code: $error_code). Retirée du stock.";
@@ -869,6 +860,21 @@ class LicenceFlow_Admin {
 
             // Sync stock
             LicenceFlow_Core::get_instance()->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+            $valid = false;
+        } elseif ( $status === 'error' ) {
+            wp_send_json_error( array( 'message' => __( 'Erreur de connexion ou Timeout de l\'API. Veuillez réessayer.', 'licenceflow' ) ) );
+        } else {
+            // Valid (online_key or phone_activation)
+            $formatted_msg = sprintf(
+                /* translators: 1: product name, 2: message */
+                __( 'Clé Valide : %1$s. %2$s', 'licenceflow' ),
+                $product_name,
+                $msg
+            );
+            if ( $remaining !== null ) {
+                $formatted_msg .= ' (' . sprintf( __( '%d activations restantes', 'licenceflow' ), $remaining ) . ')';
+            }
+            $valid = true;
         }
 
         wp_send_json_success( array(
