@@ -90,9 +90,58 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
         $content = file_get_contents( $_FILES['import_txt']['tmp_name'] );
         $lines   = preg_split( '/\r?\n/', $content );
 
+        $verify_online = ! empty( $_POST['txt_verify_online'] ) && $txt_type === 'key';
+        $results_by_key = array();
+
+        if ( $verify_online ) {
+            $keys_to_verify = array();
+            foreach ( $lines as $line ) {
+                $line = trim( $line );
+                if ( $line === '' ) continue;
+                if ( strpos( $line, '||' ) !== false ) {
+                    $parts_note = explode( '||', $line, 2 );
+                    $line = trim( $parts_note[0] );
+                }
+                if ( preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $line ) ) {
+                    $keys_to_verify[] = $line;
+                }
+            }
+
+            if ( ! empty( $keys_to_verify ) ) {
+                $batch_size = 30;
+                $chunks = array_chunk( $keys_to_verify, $batch_size );
+                $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+                $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+                foreach ( $chunks as $chunk ) {
+                    $response = wp_remote_post( $url, array(
+                        'headers' => array(
+                            'Content-Type'          => 'application/json',
+                            'X-LicenceFlow-Api-Key' => $api_key,
+                        ),
+                        'body'    => wp_json_encode( array( 'keys' => $chunk ) ),
+                        'timeout' => 30,
+                    ) );
+
+                    if ( ! is_wp_error( $response ) ) {
+                        $body_res = wp_remote_retrieve_body( $response );
+                        $data = json_decode( $body_res, true );
+                        if ( ! empty( $data['success'] ) && ! empty( $data['results'] ) ) {
+                            foreach ( $data['results'] as $res ) {
+                                if ( ! empty( $res['key'] ) ) {
+                                    $results_by_key[ strtoupper( $res['key'] ) ] = $res;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         $imported = 0;
         $skipped  = 0;
         $errors   = 0;
+        $deactivated_count = 0;
 
         foreach ( $lines as $line ) {
             $line = trim( $line );
@@ -104,6 +153,21 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
                 $parts_note  = explode( '||', $line, 2 );
                 $line        = trim( $parts_note[0] );
                 $inline_note = sanitize_textarea_field( trim( $parts_note[1] ) );
+            }
+
+            // Check online validation result if requested
+            $orig_status = $txt_status;
+            $status_msg = '';
+            if ( $verify_online && preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $line ) ) {
+                $up_key = strtoupper( $line );
+                if ( isset( $results_by_key[ $up_key ] ) ) {
+                    $res = $results_by_key[ $up_key ];
+                    if ( empty( $res['valid'] ) ) {
+                        $txt_status = 'inactive';
+                        $status_msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                        $deactivated_count++;
+                    }
+                }
             }
 
             // Serialize based on type
@@ -137,8 +201,11 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
                 'remaining_delivre_x_times' => $txt_delivre,
                 'valid'                     => $txt_valid,
                 'license_note'              => $inline_note,
-                'admin_notes'               => $txt_notes,
+                'admin_notes'               => $status_msg ? trim( $txt_notes . "\n[Import] Clé détectée comme bloquée/invalide lors de l'import : " . $status_msg ) : $txt_notes,
             );
+            
+            // Restore status
+            $txt_status = $orig_status;
             if ( $txt_expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $txt_expiry ) ) {
                 $data['expiration_date'] = $txt_expiry;
             }
@@ -156,13 +223,18 @@ if ( isset( $_POST['lflow_txt_import_nonce'] ) ) {
             LicenceFlow_Core::get_instance()->sync_product_stock( $txt_product_id, $txt_variation_id );
         }
 
+        $msg = sprintf(
+            /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
+            __( 'Import TXT terminé : %1$d importée(s), %2$d ligne(s) vide(s) ignorée(s), %3$d erreur(s).', 'licenceflow' ),
+            $imported, $skipped, $errors
+        );
+        if ( $deactivated_count > 0 ) {
+            $msg .= ' ' . sprintf( __( '⚠️ %d clé(s) Microsoft bloquée(s) détectée(s) et désactivée(s) automatiquement.', 'licenceflow' ), $deactivated_count );
+        }
+
         $notice = array(
-            'type' => $errors ? 'warning' : 'updated',
-            'msg'  => sprintf(
-                /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
-                __( 'Import TXT terminé : %1$d importée(s), %2$d ligne(s) vide(s) ignorée(s), %3$d erreur(s).', 'licenceflow' ),
-                $imported, $skipped, $errors
-            ),
+            'type' => $errors || $deactivated_count ? 'warning' : 'updated',
+            'msg'  => $msg,
         );
     }
 }
@@ -186,12 +258,62 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
             $skipped  = 0;
             $errors   = 0;
             $line     = 0;
+            $deactivated_count = 0;
             $valid_types    = array_keys( lflow_license_types() );
             $valid_statuses = array_keys( lflow_license_statuses() );
+
+            $verify_online = ! empty( $_POST['csv_verify_online'] );
+            $results_by_key = array();
+            $rows_data = array();
 
             while ( ( $row = fgetcsv( $handle ) ) !== false ) {
                 $line++;
                 if ( $line === 1 ) continue; // Skip header
+                $rows_data[] = $row;
+            }
+
+            if ( $verify_online ) {
+                $keys_to_verify = array();
+                foreach ( $rows_data as $row_item ) {
+                    $type = sanitize_key( $row_item[0] ?? 'key' );
+                    $value = $row_item[1] ?? '';
+                    if ( $type === 'key' && preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $value ) ) {
+                        $keys_to_verify[] = $value;
+                    }
+                }
+
+                if ( ! empty( $keys_to_verify ) ) {
+                    $batch_size = 30;
+                    $chunks = array_chunk( $keys_to_verify, $batch_size );
+                    $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+                    $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+                    foreach ( $chunks as $chunk ) {
+                        $response = wp_remote_post( $url, array(
+                            'headers' => array(
+                                'Content-Type'          => 'application/json',
+                                'X-LicenceFlow-Api-Key' => $api_key,
+                            ),
+                            'body'    => wp_json_encode( array( 'keys' => $chunk ) ),
+                            'timeout' => 30,
+                        ) );
+
+                        if ( ! is_wp_error( $response ) ) {
+                            $body_res = wp_remote_retrieve_body( $response );
+                            $data = json_decode( $body_res, true );
+                            if ( ! empty( $data['success'] ) && ! empty( $data['results'] ) ) {
+                                foreach ( $data['results'] as $res ) {
+                                    if ( ! empty( $res['key'] ) ) {
+                                        $results_by_key[ strtoupper( $res['key'] ) ] = $res;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach ( $rows_data as $row ) {
 
                 $type         = sanitize_key( $row[0] ?? 'key' );
                 $value        = $row[1] ?? '';
@@ -222,13 +344,28 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                     $serialized = sanitize_textarea_field( $value );
                 }
 
+                $license_status = 'available';
+                $status_msg = '';
+                if ( $verify_online && $type === 'key' && preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $value ) ) {
+                    $up_key = strtoupper( $value );
+                    if ( isset( $results_by_key[ $up_key ] ) ) {
+                        $res = $results_by_key[ $up_key ];
+                        if ( empty( $res['valid'] ) ) {
+                            $license_status = 'inactive';
+                            $status_msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                            $deactivated_count++;
+                        }
+                    }
+                }
+
                 $data = array(
-                    'product_id'   => $import_product_id ?: 0,
-                    'license_key'  => $serialized,
-                    'license_type' => $type,
-                    'license_note' => $license_note,
-                    'admin_notes'  => $notes,
-                    'valid'        => $valid,
+                    'product_id'     => $import_product_id ?: 0,
+                    'license_key'    => $serialized,
+                    'license_type'   => $type,
+                    'license_status' => $license_status,
+                    'license_note'   => $license_note,
+                    'admin_notes'    => $status_msg ? trim( $notes . "\n[Import] Clé détectée comme bloquée/invalide lors de l'import : " . $status_msg ) : $notes,
+                    'valid'          => $valid,
                 );
                 if ( $expiry && preg_match( '/^\d{4}-\d{2}-\d{2}$/', $expiry ) ) {
                     $data['expiration_date'] = $expiry;
@@ -248,13 +385,18 @@ if ( isset( $_POST['lflow_import_nonce'] ) ) {
                 LicenceFlow_Core::get_instance()->sync_product_stock( $import_product_id, 0 );
             }
 
+            $msg = sprintf(
+                /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
+                __( 'Import CSV terminé : %1$d importée(s), %2$d ignorée(s), %3$d erreur(s).', 'licenceflow' ),
+                $imported, $skipped, $errors
+            );
+            if ( $deactivated_count > 0 ) {
+                $msg .= ' ' . sprintf( __( '⚠️ %d clé(s) Microsoft bloquée(s) détectée(s) et désactivée(s) automatiquement.', 'licenceflow' ), $deactivated_count );
+            }
+
             $notice = array(
-                'type' => 'updated',
-                'msg'  => sprintf(
-                    /* translators: %1$d: imported, %2$d: skipped, %3$d: errors */
-                    __( 'Import CSV terminé : %1$d importée(s), %2$d ignorée(s), %3$d erreur(s).', 'licenceflow' ),
-                    $imported, $skipped, $errors
-                ),
+                'type' => $errors || $deactivated_count ? 'warning' : 'updated',
+                'msg'  => $msg,
             );
         }
     }
@@ -365,6 +507,17 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                             <textarea id="txt_admin_notes" name="txt_admin_notes" rows="2" style="width:300px;" placeholder="<?php esc_attr_e( 'Ex. : Lot acheté le 22/03/2026 chez le fournisseur X', 'licenceflow' ); ?>"></textarea>
                         </td>
                     </tr>
+                    <tr>
+                        <th>
+                            <label for="txt_verify_online"><?php esc_html_e( 'Vérifier en ligne', 'licenceflow' ); ?></label>
+                            <button type="button" class="lflow-help-btn">?</button>
+                            <span class="lflow-help-text"><?php esc_html_e( 'Interroge l\'API en arrière-plan pour valider les clés Microsoft 5x5. Les clés bloquées seront automatiquement importées avec le statut "Inactif" et annotées.', 'licenceflow' ); ?></span>
+                        </th>
+                        <td>
+                            <input type="checkbox" id="txt_verify_online" name="txt_verify_online" value="1" checked>
+                            <span class="description"><?php esc_html_e( 'Vérifier la validité des clés en ligne (Microsoft 5x5)', 'licenceflow' ); ?></span>
+                        </td>
+                    </tr>
                 </table>
 
                 <p><button type="submit" class="button button-primary"><?php esc_html_e( 'Importer le fichier TXT', 'licenceflow' ); ?></button></p>
@@ -442,6 +595,17 @@ $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_selec
                     <tr>
                         <th><label><?php esc_html_e( 'Fichier CSV', 'licenceflow' ); ?></label></th>
                         <td><input type="file" name="import_csv" accept=".csv"></td>
+                    </tr>
+                    <tr>
+                        <th>
+                            <label for="csv_verify_online"><?php esc_html_e( 'Vérifier en ligne', 'licenceflow' ); ?></label>
+                            <button type="button" class="lflow-help-btn">?</button>
+                            <span class="lflow-help-text"><?php esc_html_e( 'Interroge l\'API en arrière-plan pour valider les clés Microsoft 5x5. Les clés bloquées seront automatiquement importées avec le statut "Inactif" et annotées.', 'licenceflow' ); ?></span>
+                        </th>
+                        <td>
+                            <input type="checkbox" id="csv_verify_online" name="csv_verify_online" value="1" checked>
+                            <span class="description"><?php esc_html_e( 'Vérifier la validité des clés en ligne (Microsoft 5x5)', 'licenceflow' ); ?></span>
+                        </td>
                     </tr>
                 </table>
 

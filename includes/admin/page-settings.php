@@ -183,7 +183,12 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <p style="margin:0;"><strong>🔐 <?php esc_html_e( 'Conservez vos clés en sécurité', 'licenceflow' ); ?></strong> — <?php esc_html_e( 'notez-les dans un gestionnaire de mots de passe (Bitwarden, 1Password, etc.). Sans elles, vos licences deviennent illisibles. WooCommerce ne peut pas les récupérer si vous les perdez.', 'licenceflow' ); ?></p>
             </div>
 
-            <?php if ( LicenceFlow_Settings::has_default_encryption_keys() ) : ?>
+            <?php
+            $is_key_const = defined( 'LFLOW_ENC_KEY' );
+            $is_iv_const  = defined( 'LFLOW_ENC_IV' );
+            ?>
+
+            <?php if ( LicenceFlow_Settings::has_default_encryption_keys() && ! $is_key_const && ! $is_iv_const ) : ?>
             <div class="lflow-enc-warning">
                 ⚠️ <strong><?php esc_html_e( 'Clés par défaut détectées.', 'licenceflow' ); ?></strong>
                 <?php esc_html_e( 'Remplacez ces valeurs par des clés uniques AVANT d\'ajouter vos premières licences.', 'licenceflow' ); ?>
@@ -194,14 +199,20 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <tr>
                     <th><label for="lflow_enc_key"><?php esc_html_e( 'Clé de chiffrement (AES-256)', 'licenceflow' ); ?></label></th>
                     <td>
-                        <input type="text" id="lflow_enc_key" name="lflow_enc_key" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_key' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;">
+                        <input type="text" id="lflow_enc_key" name="lflow_enc_key" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_key' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;" <?php disabled( $is_key_const ); ?>>
+                        <?php if ( $is_key_const ) : ?>
+                            <span style="color:#1d7a3a; font-weight:600; margin-left:10px;">🔒 <?php esc_html_e( 'Gérée dans wp-config.php', 'licenceflow' ); ?></span>
+                        <?php endif; ?>
                         <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'au moins 32 caractères. Exemple : utilisez un générateur de mots de passe en choisissant 40 caractères alphanumériques.', 'licenceflow' ); ?></p>
                     </td>
                 </tr>
                 <tr>
                     <th><label for="lflow_enc_iv"><?php esc_html_e( 'Vecteur d\'initialisation (IV)', 'licenceflow' ); ?></label></th>
                     <td>
-                        <input type="text" id="lflow_enc_iv" name="lflow_enc_iv" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_iv' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;">
+                        <input type="text" id="lflow_enc_iv" name="lflow_enc_iv" value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_enc_iv' ) ); ?>" style="width:100%; max-width:400px; font-family:monospace;" <?php disabled( $is_iv_const ); ?>>
+                        <?php if ( $is_iv_const ) : ?>
+                            <span style="color:#1d7a3a; font-weight:600; margin-left:10px;">🔒 <?php esc_html_e( 'Géré dans wp-config.php', 'licenceflow' ); ?></span>
+                        <?php endif; ?>
                         <p class="description"><?php esc_html_e( 'Chaîne aléatoire d\'exactement 16 caractères (le chiffrement AES-CBC requiert 16 octets d\'IV).', 'licenceflow' ); ?></p>
                     </td>
                 </tr>

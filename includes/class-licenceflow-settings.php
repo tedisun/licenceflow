@@ -80,6 +80,13 @@ class LicenceFlow_Settings {
      * @return mixed
      */
     public static function get( string $key, $default = null ) {
+        if ( $key === 'lflow_enc_key' && defined( 'LFLOW_ENC_KEY' ) ) {
+            return LFLOW_ENC_KEY;
+        }
+        if ( $key === 'lflow_enc_iv' && defined( 'LFLOW_ENC_IV' ) ) {
+            return LFLOW_ENC_IV;
+        }
+
         if ( $default === null ) {
             $defaults = self::all_defaults();
             $default  = $defaults[ $key ] ?? '';

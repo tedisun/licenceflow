@@ -236,8 +236,9 @@ class LicenceFlow_List_Table extends WP_List_Table {
     protected function column_actions( $item ): string {
         $edit_url   = LicenceFlow_Admin::edit_license_url( (int) $item['license_id'] );
         $delete_id  = absint( $item['license_id'] );
+        $type       = $item['license_type'] ?? 'key';
 
-        return sprintf(
+        $out = sprintf(
             '<a href="%s" class="button button-small">%s</a> ' .
             '<a href="#" class="button button-small lflow-delete-license" data-id="%d">%s</a>',
             esc_url( $edit_url ),
@@ -245,6 +246,16 @@ class LicenceFlow_List_Table extends WP_List_Table {
             $delete_id,
             esc_html__( 'Supprimer', 'licenceflow' )
         );
+
+        if ( $type === 'key' ) {
+            $out .= sprintf(
+                ' <button type="button" class="button button-small button-secondary lflow-test-key-btn" data-id="%d">🔍 %s</button>',
+                $delete_id,
+                esc_html__( 'Tester', 'licenceflow' )
+            );
+        }
+
+        return $out;
     }
 
     public function column_default( $item, $column_name ): string {

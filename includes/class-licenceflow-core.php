@@ -45,7 +45,8 @@ class LicenceFlow_Core {
         add_action( 'before_delete_post', array( $this, 'handle_product_deletion' ) );
 
         // Cron
-        add_action( 'lflow_daily_cron', array( $this, 'run_daily_cron' ) );
+        add_action( 'lflow_daily_cron',       array( $this, 'run_daily_cron' ) );
+        add_action( 'lflow_daily_audit_cron', array( $this, 'run_daily_audit' ) );
     }
 
     public static function get_instance(): self {
@@ -540,6 +541,170 @@ class LicenceFlow_Core {
 
         $body .= '</table>';
         $body .= '<p><a href="' . admin_url( 'admin.php?page=lflow-licenses' ) . '">' . esc_html__( 'Gérer les licences', 'licenceflow' ) . '</a></p>';
+
+        wp_mail( $to, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    /**
+     * Run daily licence validation audit at 18:00
+     */
+    public function run_daily_audit(): void {
+        global $wpdb;
+
+        // Fetch all available keys
+        $rows = $wpdb->get_results(
+            "SELECT license_id, product_id, variation_id, license_key 
+             FROM {$wpdb->prefix}lflow_licenses 
+             WHERE license_status = 'available' 
+               AND license_type = 'key' 
+               AND remaining_delivre_x_times > 0",
+            ARRAY_A
+        );
+
+        if ( empty( $rows ) ) {
+            return;
+        }
+
+        $microsoft_keys = array(); // license_id => [ 'row' => $row, 'key' => $plain_key ]
+
+        foreach ( $rows as $row ) {
+            $plain_key = lflow_decrypt( $row['license_key'] );
+            if ( preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
+                $microsoft_keys[ $row['license_id'] ] = array(
+                    'row' => $row,
+                    'key' => $plain_key,
+                );
+            }
+        }
+
+        if ( empty( $microsoft_keys ) ) {
+            return;
+        }
+
+        $anomalies = array();
+        $batch_size = 30;
+        $chunks = array_chunk( $microsoft_keys, $batch_size, true );
+
+        $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+        $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+        foreach ( $chunks as $chunk ) {
+            $batch_keys = array_column( $chunk, 'key' );
+
+            $response = wp_remote_post( $url, array(
+                'headers' => array(
+                    'Content-Type'          => 'application/json',
+                    'X-LicenceFlow-Api-Key' => $api_key,
+                ),
+                'body'    => wp_json_encode( array( 'keys' => $batch_keys ) ),
+                'timeout' => 30,
+            ) );
+
+            if ( is_wp_error( $response ) ) {
+                continue; // Skip batch on connection error
+            }
+
+            $body_res = wp_remote_retrieve_body( $response );
+            $data = json_decode( $body_res, true );
+
+            if ( empty( $data['success'] ) || empty( $data['results'] ) ) {
+                continue;
+            }
+
+            // Map results by key
+            $results_by_key = array();
+            foreach ( $data['results'] as $res ) {
+                if ( ! empty( $res['key'] ) ) {
+                    $results_by_key[ strtoupper( $res['key'] ) ] = $res;
+                }
+            }
+
+            foreach ( $chunk as $lid => $item ) {
+                $plain_key = strtoupper( $item['key'] );
+                if ( ! isset( $results_by_key[ $plain_key ] ) ) {
+                    continue;
+                }
+
+                $res = $results_by_key[ $plain_key ];
+
+                // If key is blocked
+                if ( isset( $res['valid'] ) && $res['valid'] === false ) {
+                    $row = $item['row'];
+                    $msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                    $date = current_time( 'Y-m-d H:i:s' );
+                    $admin_note = trim( $row['admin_notes'] ?? '' );
+                    $new_note = "[Audit $date] Bloquée par Microsoft : $msg. Retirée du stock automatiquement.";
+                    $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+                    // Update key status to inactive
+                    LicenceFlow_License_DB::update( $lid, array(
+                        'license_status' => 'inactive',
+                        'admin_notes'    => $admin_note,
+                    ) );
+
+                    // Sync WooCommerce stock immediately
+                    $this->sync_product_stock( (int) $row['product_id'], (int) $row['variation_id'] );
+
+                    $anomalies[] = array(
+                        'license_id'   => $lid,
+                        'product_id'   => (int) $row['product_id'],
+                        'variation_id' => (int) $row['variation_id'],
+                        'key'          => $item['key'],
+                        'message'      => $msg,
+                    );
+                }
+            }
+        }
+
+        // Email alert if anomalies are found
+        if ( ! empty( $anomalies ) ) {
+            $alert_email = LicenceFlow_Settings::get( 'lflow_alert_email', get_option( 'admin_email' ) );
+            $this->send_audit_alert_email( $anomalies, $alert_email );
+        }
+    }
+
+    /**
+     * Send email report for blocked licenses detected during the audit.
+     */
+    private function send_audit_alert_email( array $anomalies, string $to ): void {
+        $count = count( $anomalies );
+        $subject = sprintf(
+            /* translators: %d: number of blocked licenses */
+            __( '[LicenceFlow] ⚠️ Alerte Stock : %d clé(s) bloquée(s) détectée(s) et retirée(s)', 'licenceflow' ),
+            $count
+        );
+
+        $body  = '<p style="font-size: 1.1em; color: #1d2327;">' . sprintf(
+            __( 'L\'audit de santé quotidien a détecté <strong>%d clé(s) Microsoft inactive(s) ou bloquée(s)</strong>. Elles ont été retirées du stock automatiquement pour préserver la qualité de vos ventes.', 'licenceflow' ),
+            $count
+        ) . '</p>';
+        $body .= '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; border:1px solid #ccd0d4; font-family: sans-serif;">';
+        $body .= '<tr style="background:#f6f7f7;"><th>ID</th><th>Produit</th><th>Clé (tronquée)</th><th>Raison / Statut</th></tr>';
+
+        foreach ( $anomalies as $a ) {
+            $product = wc_get_product( $a['product_id'] );
+            $pname   = $product ? $product->get_name() : '#' . $a['product_id'];
+            if ( $a['variation_id'] > 0 ) {
+                $variation = wc_get_product( $a['variation_id'] );
+                if ( $variation && $variation->is_type( 'variation' ) ) {
+                    $pname .= ' — ' . wc_get_formatted_variation( $variation, true, false );
+                }
+            }
+
+            // Truncate key for email safety
+            $truncated_key = substr( $a['key'], 0, 6 ) . '-XXXXX-...-' . substr( $a['key'], -5 );
+
+            $body .= '<tr>';
+            $body .= '<td><a href="' . admin_url( 'admin.php?page=lflow-licenses&action=edit&license_id=' . absint( $a['license_id'] ) ) . '">#' . absint( $a['license_id'] ) . '</a></td>';
+            $body .= '<td>' . esc_html( $pname ) . '</td>';
+            $body .= '<td><code style="font-family:monospace; background:#f0f0f1; padding:2px 4px; border-radius:3px;">' . esc_html( $truncated_key ) . '</code></td>';
+            $body .= '<td style="color:#d63638; font-weight:600;">' . esc_html( $a['message'] ) . '</td>';
+            $body .= '</tr>';
+        }
+
+        $body .= '</table>';
+        $body .= '<p style="margin-top:20px;"><a href="' . admin_url( 'admin.php?page=lflow-licenses' ) . '" style="display:inline-block; padding:8px 16px; background:#2271b1; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">' . esc_html__( 'Accéder à la gestion des licences', 'licenceflow' ) . '</a></p>';
+        $body .= '<p style="font-size:0.85em; color:#646970; margin-top:30px;">' . esc_html__( 'Cet audit est exécuté quotidiennement à 18h00.', 'licenceflow' ) . '</p>';
 
         wp_mail( $to, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
     }

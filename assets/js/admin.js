@@ -17,6 +17,7 @@
             this.bindFilterVariations();
             this.bindLiveSearch();
             this.initSearchableSelects();
+            this.bindTestKeyBtn();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -199,6 +200,36 @@
                     var $btn = $(e.currentTarget);
                     $btn.text('✓');
                     setTimeout(function () { $btn.text('⧉'); }, 1500);
+                });
+            });
+        },
+
+        // ── Test single key ───────────────────────────────────────────────────
+
+        bindTestKeyBtn: function () {
+            $(document).on('click', '.lflow-test-key-btn', function (e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var id = $btn.data('id');
+                var origText = $btn.text();
+
+                $btn.prop('disabled', true).text('⏳...');
+
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_test_license_key',
+                    nonce: lflow_admin.nonce,
+                    license_id: id
+                }, function (response) {
+                    if (response.success) {
+                        LFLOW.showNotice(response.data.message, 'success');
+                        // If checking a key deactivates it, reload table to reflect changes immediately
+                        if (response.data.valid === false && typeof LFLOW._loadTable === 'function') {
+                            LFLOW._loadTable();
+                        }
+                    } else {
+                        LFLOW.showNotice(response.data.message || lflow_admin.i18n.error, 'error');
+                    }
+                    $btn.prop('disabled', false).text(origText);
                 });
             });
         },

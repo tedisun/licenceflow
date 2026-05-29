@@ -47,8 +47,8 @@ function lflow_encrypt_decrypt( string $action, string $string, string $secret_k
  * @return string
  */
 function lflow_encrypt( string $value ): string {
-    $key = get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
-    $iv  = get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
+    $key = defined( 'LFLOW_ENC_KEY' ) ? LFLOW_ENC_KEY : get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
+    $iv  = defined( 'LFLOW_ENC_IV' ) ? LFLOW_ENC_IV : get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
     return lflow_encrypt_decrypt( 'encrypt', $value, $key, $iv );
 }
 
@@ -66,8 +66,8 @@ function lflow_decrypt( string $value ): string {
     if ( $value === '' ) {
         return '';
     }
-    $key       = get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
-    $iv        = get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
+    $key       = defined( 'LFLOW_ENC_KEY' ) ? LFLOW_ENC_KEY : get_option( 'lflow_enc_key', LFLOW_DEFAULT_ENC_KEY );
+    $iv        = defined( 'LFLOW_ENC_IV' ) ? LFLOW_ENC_IV : get_option( 'lflow_enc_iv',  LFLOW_DEFAULT_ENC_IV );
     $decrypted = lflow_encrypt_decrypt( 'decrypt', $value, $key, $iv );
     // openssl_decrypt() returns false on failure (wrong key, malformed ciphertext, etc.).
     // Return the original stored value so pre-encryption data is still displayed correctly.

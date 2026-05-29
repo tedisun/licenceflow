@@ -114,11 +114,25 @@ function lflow_activate() {
     if ( ! wp_next_scheduled( 'lflow_daily_cron' ) ) {
         wp_schedule_event( time(), 'daily', 'lflow_daily_cron' );
     }
+    // Schedule daily key status audit at 18:00 local time
+    if ( ! wp_next_scheduled( 'lflow_daily_audit_cron' ) ) {
+        $time_string = '18:00:00';
+        $timezone    = wp_timezone();
+        $datetime    = new DateTime( $time_string, $timezone );
+        $timestamp   = $datetime->getTimestamp();
+
+        if ( $timestamp < time() ) {
+            $timestamp += DAY_IN_SECONDS;
+        }
+
+        wp_schedule_event( $timestamp, 'daily', 'lflow_daily_audit_cron' );
+    }
     flush_rewrite_rules();
 }
 
 function lflow_deactivate() {
     wp_clear_scheduled_hook( 'lflow_daily_cron' );
+    wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
     flush_rewrite_rules();
 }
 

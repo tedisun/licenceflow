@@ -31,6 +31,7 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_migrate_enc_keys',     array( $this, 'ajax_migrate_enc_keys' ) );
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
+        add_action( 'wp_ajax_lflow_test_license_key',      array( $this, 'ajax_test_license_key' ) );
 
         // Quick CSV export (admin-post)
         add_action( 'admin_post_lflow_quick_export', array( $this, 'handle_quick_export' ) );
@@ -515,6 +516,133 @@ class LicenceFlow_Admin {
                 __( '%d licence(s) mise(s) à jour.', 'licenceflow' ),
                 count( $license_ids )
             ) ) );
+        } elseif ( $action === 'verify_online' ) {
+            // Bulk Microsoft validation
+            $licenses = array();
+            foreach ( $license_ids as $lid ) {
+                $license = LicenceFlow_License_DB::get( $lid );
+                if ( $license && ( $license['license_type'] ?? 'key' ) === 'key' ) {
+                    $plain_key = lflow_decrypt( $license['license_key'] ?? '' );
+                    if ( preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
+                        $licenses[ $lid ] = array(
+                            'row' => $license,
+                            'key' => $plain_key,
+                        );
+                    }
+                }
+            }
+
+            if ( empty( $licenses ) ) {
+                wp_send_json_error( array( 'message' => __( 'Aucune clé Microsoft 5x5 valide trouvée parmi la sélection.', 'licenceflow' ) ) );
+            }
+
+            $checked = 0;
+            $valid_count = 0;
+            $blocked_count = 0;
+            $failures = 0;
+
+            $batch_size = 30;
+            $chunks = array_chunk( $licenses, $batch_size, true );
+
+            $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+            $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+            $products_to_sync = array();
+
+            foreach ( $chunks as $chunk ) {
+                $batch_keys = array_column( $chunk, 'key' );
+
+                $response = wp_remote_post( $url, array(
+                    'headers' => array(
+                        'Content-Type'          => 'application/json',
+                        'X-LicenceFlow-Api-Key' => $api_key,
+                    ),
+                    'body'    => wp_json_encode( array( 'keys' => $batch_keys ) ),
+                    'timeout' => 30,
+                ) );
+
+                if ( is_wp_error( $response ) ) {
+                    $failures += count( $chunk );
+                    continue;
+                }
+
+                $body_res = wp_remote_retrieve_body( $response );
+                $data = json_decode( $body_res, true );
+
+                if ( empty( $data['success'] ) || empty( $data['results'] ) ) {
+                    $failures += count( $chunk );
+                    continue;
+                }
+
+                // Map results by key
+                $results_by_key = array();
+                foreach ( $data['results'] as $res ) {
+                    if ( ! empty( $res['key'] ) ) {
+                        $results_by_key[ strtoupper( $res['key'] ) ] = $res;
+                    }
+                }
+
+                foreach ( $chunk as $lid => $item ) {
+                    $plain_key = strtoupper( $item['key'] );
+                    if ( ! isset( $results_by_key[ $plain_key ] ) ) {
+                        $failures++;
+                        continue;
+                    }
+
+                    $res = $results_by_key[ $plain_key ];
+                    $checked++;
+
+                    $valid = ! empty( $res['valid'] );
+
+                    if ( $valid ) {
+                        $valid_count++;
+                    } else {
+                        $blocked_count++;
+                        $row = $item['row'];
+                        $msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                        $err = $res['error_code'] ?? '0x0';
+                        $date = current_time( 'Y-m-d H:i:s' );
+                        
+                        $admin_note = trim( $row['admin_notes'] ?? '' );
+                        $new_note = "[Test en masse $date] Bloquée par Microsoft : $msg (Code: $err). Retirée du stock automatiquement.";
+                        $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+                        // Mark status as inactive
+                        LicenceFlow_License_DB::update( $lid, array(
+                            'license_status' => 'inactive',
+                            'admin_notes'    => $admin_note,
+                        ) );
+
+                        // Mark product for stock sync
+                        $sync_key = $row['product_id'] . '_' . $row['variation_id'];
+                        $products_to_sync[ $sync_key ] = array(
+                            'product_id'   => (int) $row['product_id'],
+                            'variation_id' => (int) $row['variation_id'],
+                        );
+                    }
+                }
+            }
+
+            // Sync stocks
+            if ( ! empty( $products_to_sync ) ) {
+                $core = LicenceFlow_Core::get_instance();
+                foreach ( $products_to_sync as $prod ) {
+                    $core->sync_product_stock( $prod['product_id'], $prod['variation_id'] );
+                }
+            }
+
+            $skipped = count( $license_ids ) - count( $licenses );
+            $msg = sprintf(
+                /* translators: 1: checked keys, 2: valid keys, 3: blocked keys, 4: failures, 5: skipped */
+                __( 'Vérification en ligne terminée : %1$d clé(s) Microsoft testée(s) (%2$d valide(s), %3$d inactive(s)/bloquée(s) désactivée(s)), %4$d échec(s), %5$d clé(s) non-Microsoft ignorée(s).', 'licenceflow' ),
+                $checked,
+                $valid_count,
+                $blocked_count,
+                $failures,
+                $skipped
+            );
+
+            wp_send_json_success( array( 'message' => $msg ) );
         }
 
         wp_send_json_error( array( 'message' => __( 'Action invalide.', 'licenceflow' ) ) );
@@ -648,6 +776,109 @@ class LicenceFlow_Admin {
         }
 
         wp_send_json_success( $status );
+    }
+
+    // ── AJAX: test license key ────────────────────────────────────────────────
+
+    public function ajax_test_license_key(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        $license_id = absint( $_POST['license_id'] ?? 0 );
+        if ( ! $license_id ) {
+            wp_send_json_error( array( 'message' => __( 'ID de licence invalide.', 'licenceflow' ) ) );
+        }
+
+        $license = LicenceFlow_License_DB::get( $license_id );
+        if ( ! $license ) {
+            wp_send_json_error( array( 'message' => __( 'Licence non trouvée.', 'licenceflow' ) ) );
+        }
+
+        $type = $license['license_type'] ?? 'key';
+        if ( $type !== 'key' ) {
+            wp_send_json_error( array( 'message' => __( 'Seules les licences de type "Clé de licence" peuvent être testées.', 'licenceflow' ) ) );
+        }
+
+        $plain_key = lflow_decrypt( $license['license_key'] ?? '' );
+        if ( ! preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
+            wp_send_json_error( array( 'message' => __( 'Seules les clés Microsoft au format 5x5 (XXXXX-XXXXX-XXXXX-XXXXX-XXXXX) sont vérifiables en ligne.', 'licenceflow' ) ) );
+        }
+
+        $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+        $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+        $response = wp_remote_post( $url, array(
+            'headers' => array(
+                'Content-Type'          => 'application/json',
+                'X-LicenceFlow-Api-Key' => $api_key,
+            ),
+            'body'    => wp_json_encode( array( 'keys' => array( $plain_key ) ) ),
+            'timeout' => 30,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            wp_send_json_error( array( 'message' => __( 'Erreur de connexion à l\'API du vérificateur : ', 'licenceflow' ) . $response->get_error_message() ) );
+        }
+
+        $body_res = wp_remote_retrieve_body( $response );
+        $data = json_decode( $body_res, true );
+
+        if ( empty( $data['success'] ) || empty( $data['results'] ) ) {
+            wp_send_json_error( array( 'message' => __( 'Réponse invalide de l\'API du vérificateur.', 'licenceflow' ) ) );
+        }
+
+        $result = $data['results'][0];
+
+        // Format result message
+        $valid = ! empty( $result['valid'] );
+        $product_name = $result['product_name'] ?? '';
+        $status = $result['status'] ?? 'unknown';
+        $error_code = $result['error_code'] ?? '';
+        $remaining = $result['remaining_activations'] ?? null;
+        $msg = $result['message'] ?? '';
+
+        $formatted_msg = '';
+        if ( $valid ) {
+            $formatted_msg = sprintf(
+                /* translators: 1: product name, 2: message */
+                __( 'Clé Valide : %1$s. %2$s', 'licenceflow' ),
+                $product_name,
+                $msg
+            );
+            if ( $remaining !== null ) {
+                $formatted_msg .= ' (' . sprintf( __( '%d activations restantes', 'licenceflow' ), $remaining ) . ')';
+            }
+        } else {
+            $formatted_msg = sprintf(
+                /* translators: 1: message, 2: error code */
+                __( 'Clé Bloquée / Inactive : %1$s (Code: %2$s)', 'licenceflow' ),
+                $msg,
+                $error_code
+            );
+
+            // Automatically deactivate key if it is not valid
+            $date = current_time( 'Y-m-d H:i:s' );
+            $admin_note = trim( $license['admin_notes'] ?? '' );
+            $new_note = "[Test direct $date] Bloquée par Microsoft : $msg (Code: $error_code). Retirée du stock.";
+            $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+            LicenceFlow_License_DB::update( $license_id, array(
+                'license_status' => 'inactive',
+                'admin_notes'    => $admin_note,
+            ) );
+
+            // Sync stock
+            LicenceFlow_Core::get_instance()->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+        }
+
+        wp_send_json_success( array(
+            'valid'         => $valid,
+            'message'       => $formatted_msg,
+            'product_name'  => $product_name,
+            'status'        => $status,
+            'error_code'    => $error_code,
+            'remaining'     => $remaining,
+        ) );
     }
 
     // ── Quick CSV export ──────────────────────────────────────────────────────

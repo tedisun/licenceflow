@@ -66,6 +66,7 @@ if ( $cur_product > 0 ) {
             <select id="lflow-bulk-action" name="bulk_action">
                 <option value=""><?php esc_html_e( '— Action groupée —', 'licenceflow' ); ?></option>
                 <option value="delete"><?php esc_html_e( 'Supprimer', 'licenceflow' ); ?></option>
+                <option value="verify_online"><?php esc_html_e( 'Vérifier la validité en ligne (Microsoft)', 'licenceflow' ); ?></option>
                 <?php foreach ( lflow_license_statuses() as $slug => $label ) : ?>
                     <option value="<?php echo esc_attr( $slug ); ?>">
                         <?php printf( esc_html__( 'Marquer : %s', 'licenceflow' ), esc_html( $label ) ); ?>
