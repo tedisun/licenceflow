@@ -568,7 +568,7 @@ class LicenceFlow_License_DB {
                    AND expiration_date != '0000-00-00'
                    AND expiration_date >= CURDATE()
                    AND expiration_date <= DATE_ADD(CURDATE(), INTERVAL %d DAY)
-                   AND license_status NOT IN ('expired', 'returned')
+                   AND license_status = 'available'
                  ORDER BY expiration_date ASC",
                 $days
             ),
