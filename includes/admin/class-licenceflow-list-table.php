@@ -247,7 +247,8 @@ class LicenceFlow_List_Table extends WP_List_Table {
             esc_html__( 'Supprimer', 'licenceflow' )
         );
 
-        if ( $type === 'key' ) {
+        $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
+        if ( $type === 'key' && in_array( (int) $item['product_id'], $whitelisted_ids, true ) ) {
             $out .= sprintf(
                 ' <button type="button" class="button button-small button-secondary lflow-test-key-btn" data-id="%d">🔍 %s</button>',
                 $delete_id,

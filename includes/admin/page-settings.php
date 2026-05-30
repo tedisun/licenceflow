@@ -17,6 +17,7 @@ $tabs = array(
     'notifications' => __( 'Notifications', 'licenceflow' ),
     'order-status'  => __( 'Statuts de commande', 'licenceflow' ),
     'stock-alerts'  => __( 'Alertes stock', 'licenceflow' ),
+    'audit'         => __( 'Audit & Vérification', 'licenceflow' ),
 );
 $base_url = admin_url( 'admin.php?page=lflow-settings' );
 ?>
@@ -423,7 +424,107 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
         </form>
     </div>
 
+    <!-- ── Tab: Audit & Vérification ─────────────────────────────────────────── -->
+    <div class="lflow-settings-tab-pane" id="lflow-tab-audit">
+        <form method="post" action="options.php">
+            <?php settings_fields( 'lflow_settings_audit' ); ?>
+
+            <div style="background:#fff; border:1px solid #ddd; border-left:4px solid #2271b1; border-radius:3px; padding:16px 20px; margin:16px 0; max-width:800px;">
+                <h3 style="margin:0 0 10px; font-size:14px; color:#1d2327;"><?php esc_html_e( 'Vérification sélective des clés Microsoft (Retail)', 'licenceflow' ); ?></h3>
+                <p style="margin:0 0 10px;"><?php esc_html_e( 'Cochez uniquement les produits contenant des clés de licence Microsoft éligibles à la vérification en ligne (ex: Windows Retail, Office Retail). Les produits non cochés (ex: Microsoft 365, clés antivirus, clés liées au compte Microsoft) seront exclus de l\'analyse automatique de 18h et de la vérification manuelle pour éviter tout faux positif ou désactivation accidentelle.', 'licenceflow' ); ?></p>
+            </div>
+
+            <!-- Custom control deck layout -->
+            <div class="lflow-card" style="max-width:800px; padding: 24px; border-radius: 6px;">
+                <h2 style="font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <span><?php esc_html_e( 'Produits éligibles à l\'analyse', 'licenceflow' ); ?></span>
+                    <div style="display:flex; gap: 8px;">
+                        <button type="button" id="lflow-audit-select-all" class="button button-small"><?php esc_html_e( 'Tout cocher', 'licenceflow' ); ?></button>
+                        <button type="button" id="lflow-audit-deselect-all" class="button button-small"><?php esc_html_e( 'Tout décocher', 'licenceflow' ); ?></button>
+                    </div>
+                </h2>
+
+                <!-- Live search filter box -->
+                <div style="margin-bottom: 20px; position: relative;">
+                    <input type="text" id="lflow-audit-search" placeholder="<?php esc_attr_e( 'Rechercher un produit...', 'licenceflow' ); ?>" style="width: 100%; padding: 8px 12px 8px 36px; font-size: 14px; border: 1px solid #8c8f94; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.07); height: 40px;">
+                    <span class="dashicons dashicons-search" style="position: absolute; left: 10px; top: 12px; color: #646970;"></span>
+                </div>
+
+                <!-- Products Checklist Grid -->
+                <?php
+                $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_select();
+                $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
+                ?>
+                <?php if ( empty( $licensed_products ) ) : ?>
+                    <p style="color:#646970; font-style:italic; padding: 10px 0;"><?php esc_html_e( 'Aucun produit avec LicenceFlow actif n\'a été trouvé.', 'licenceflow' ); ?></p>
+                <?php else : ?>
+                    <style>
+                        .lflow-audit-product-row {
+                            display: flex;
+                            align-items: center;
+                            padding: 10px 12px;
+                            border-bottom: 1px solid #f0f0f1;
+                            transition: background 0.15s;
+                            border-radius: 4px;
+                            margin-bottom: 2px;
+                        }
+                        .lflow-audit-product-row:hover {
+                            background: #f0f6fc;
+                        }
+                        .lflow-audit-product-row:last-child {
+                            border-bottom: none !important;
+                        }
+                    </style>
+                    <div id="lflow-audit-products-grid" style="max-height: 400px; overflow-y: auto; border: 1px solid #dcdcde; border-radius: 4px; background: #fdfdfd; padding: 10px;">
+                        <?php foreach ( $licensed_products as $prod_id => $prod_title ) : 
+                            $is_checked = in_array( $prod_id, $whitelisted_ids, true );
+                        ?>
+                            <div class="lflow-audit-product-row" data-title="<?php echo esc_attr( strtolower( $prod_title ) ); ?>">
+                                <label style="display:flex; align-items: center; width: 100%; cursor: pointer; font-weight: 500; color: #2c3338;">
+                                    <input type="checkbox" name="lflow_auditable_product_ids[]" value="<?php echo absint( $prod_id ); ?>" <?php checked( $is_checked ); ?> style="margin-right: 12px;">
+                                    <span style="font-size: 13.5px;"><?php echo esc_html( $prod_title ); ?></span>
+                                    <span style="margin-left: auto; font-size: 11px; color: #8c8f94; font-family: monospace;">ID: <?php echo absint( $prod_id ); ?></span>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <?php submit_button(); ?>
+        </form>
+    </div>
+
 </div>
+
+<script>
+jQuery(document).ready(function($) {
+    // Live Search Filter
+    $('#lflow-audit-search').on('input', function() {
+        var term = $(this).val().toLowerCase().trim();
+        $('.lflow-audit-product-row').each(function() {
+            var title = $(this).data('title');
+            if (title.indexOf(term) !== -1) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
+
+    // Select All
+    $('#lflow-audit-select-all').on('click', function(e) {
+        e.preventDefault();
+        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', true);
+    });
+
+    // Deselect All
+    $('#lflow-audit-deselect-all').on('click', function(e) {
+        e.preventDefault();
+        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', false);
+    });
+});
+</script>
 
 <script>
 (function($){

@@ -551,13 +551,20 @@ class LicenceFlow_Core {
     public function run_daily_audit(): void {
         global $wpdb;
 
-        // Fetch all available keys
+        $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
+        if ( empty( $whitelisted_ids ) ) {
+            return; // No products configured for online audit
+        }
+        $ids_in = implode( ',', array_map( 'intval', $whitelisted_ids ) );
+
+        // Fetch all available keys for whitelisted products
         $rows = $wpdb->get_results(
             "SELECT license_id, product_id, variation_id, license_key 
              FROM {$wpdb->prefix}lflow_licenses 
              WHERE license_status = 'available' 
                AND license_type = 'key' 
-               AND remaining_delivre_x_times > 0",
+               AND remaining_delivre_x_times > 0
+               AND product_id IN ($ids_in)",
             ARRAY_A
         );
 

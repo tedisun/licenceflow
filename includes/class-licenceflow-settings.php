@@ -67,6 +67,8 @@ class LicenceFlow_Settings {
             'lflow_stock_alert_whatsapp'         => '+22654819666',
             'lflow_stock_alert_whatsapp_country' => 'BF',
             'lflow_stock_alert_webhook_url'      => '',
+            // Selective Microsoft Audit
+            'lflow_auditable_product_ids'        => array(),
         );
     }
 
@@ -144,6 +146,9 @@ class LicenceFlow_Settings {
         }
         register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_emails',      array( 'sanitize_callback' => array( $this, 'sanitize_emails_list' ) ) );
         register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_webhook_url', array( 'sanitize_callback' => array( $this, 'sanitize_url_option' ) ) );
+
+        // Audit tab
+        register_setting( 'lflow_settings_audit', 'lflow_auditable_product_ids', array( 'sanitize_callback' => array( $this, 'sanitize_int_array' ) ) );
     }
 
     // ── Enc key migration ─────────────────────────────────────────────────────
@@ -247,5 +252,15 @@ class LicenceFlow_Settings {
     public function sanitize_url_option( string $value ): string {
         $value = esc_url_raw( trim( $value ) );
         return filter_var( $value, FILTER_VALIDATE_URL ) ? $value : '';
+    }
+
+    /**
+     * Sanitize an array of integers (product IDs).
+     */
+    public function sanitize_int_array( $value ): array {
+        if ( ! is_array( $value ) ) {
+            return array();
+        }
+        return array_unique( array_map( 'absint', $value ) );
     }
 }
