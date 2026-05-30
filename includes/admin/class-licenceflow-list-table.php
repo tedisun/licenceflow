@@ -248,7 +248,10 @@ class LicenceFlow_List_Table extends WP_List_Table {
         );
 
         $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
-        if ( $type === 'key' && in_array( (int) $item['product_id'], $whitelisted_ids, true ) ) {
+        $item_var_id     = (int) ( $item['variation_id'] ?? 0 );
+        $match_id        = $item_var_id > 0 ? $item_var_id : (int) $item['product_id'];
+
+        if ( $type === 'key' && in_array( $match_id, $whitelisted_ids, true ) ) {
             $out .= sprintf(
                 ' <button type="button" class="button button-small button-secondary lflow-test-key-btn" data-id="%d">🔍 %s</button>',
                 $delete_id,

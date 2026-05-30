@@ -1,5 +1,12 @@
 # Changelog — LicenceFlow
 
+## [1.5.1] — 2026-05-30
+
+### Ajouté
+- **Liste blanche granulaire par variation** — le panneau central « Audit & Vérification » permet désormais de sélectionner indépendamment les variations individuelles pour les produits variables WooCommerce.
+- **Master Checkboxes avec états indéterminés** — master checkboxes intelligents pour les produits variables (état HTML5 `indeterminate` représenté par un tiret `-` pour les sélections mixtes de variations).
+- **Filtrage chirurgical SQL & AJAX** — l'analyse de 18h00, les tests unitaires et en volume ciblent et valident désormais de manière chirurgicale au niveau de la variation individuelle (`variation_id > 0` vs `product_id`).
+
 ## [1.5.0] — 2026-05-30
 
 ### Ajouté

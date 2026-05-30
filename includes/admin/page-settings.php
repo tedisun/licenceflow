@@ -460,8 +460,6 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <?php else : ?>
                     <style>
                         .lflow-audit-product-row {
-                            display: flex;
-                            align-items: center;
                             padding: 10px 12px;
                             border-bottom: 1px solid #f0f0f1;
                             transition: background 0.15s;
@@ -469,23 +467,73 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                             margin-bottom: 2px;
                         }
                         .lflow-audit-product-row:hover {
-                            background: #f0f6fc;
+                            background: #fafafa;
                         }
                         .lflow-audit-product-row:last-child {
                             border-bottom: none !important;
                         }
+                        .lflow-audit-variation-row {
+                            transition: background 0.1s;
+                            border-radius: 3px;
+                            padding: 2px 4px;
+                        }
+                        .lflow-audit-variation-row:hover {
+                            background: #f0f6fc;
+                        }
                     </style>
-                    <div id="lflow-audit-products-grid" style="max-height: 400px; overflow-y: auto; border: 1px solid #dcdcde; border-radius: 4px; background: #fdfdfd; padding: 10px;">
+                    <div id="lflow-audit-products-grid" style="max-height: 450px; overflow-y: auto; border: 1px solid #dcdcde; border-radius: 4px; background: #fdfdfd; padding: 10px;">
                         <?php foreach ( $licensed_products as $prod_id => $prod_title ) : 
-                            $is_checked = in_array( $prod_id, $whitelisted_ids, true );
-                        ?>
-                            <div class="lflow-audit-product-row" data-title="<?php echo esc_attr( strtolower( $prod_title ) ); ?>">
-                                <label style="display:flex; align-items: center; width: 100%; cursor: pointer; font-weight: 500; color: #2c3338;">
-                                    <input type="checkbox" name="lflow_auditable_product_ids[]" value="<?php echo absint( $prod_id ); ?>" <?php checked( $is_checked ); ?> style="margin-right: 12px;">
-                                    <span style="font-size: 13.5px;"><?php echo esc_html( $prod_title ); ?></span>
-                                    <span style="margin-left: auto; font-size: 11px; color: #8c8f94; font-family: monospace;">ID: <?php echo absint( $prod_id ); ?></span>
-                                </label>
-                            </div>
+                            $product = wc_get_product( $prod_id );
+                            $variations = array();
+                            if ( $product && $product->is_type( 'variable' ) ) {
+                                $variations = LicenceFlow_Product_Config::get_variation_options( $prod_id );
+                            }
+                            
+                            if ( empty( $variations ) ) :
+                                // Simple product
+                                $is_checked = in_array( $prod_id, $whitelisted_ids, true );
+                            ?>
+                                <div class="lflow-audit-product-row" data-title="<?php echo esc_attr( strtolower( $prod_title ) ); ?>">
+                                    <label style="display:flex; align-items: center; width: 100%; cursor: pointer; font-weight: 500; color: #2c3338; margin: 0;">
+                                        <input type="checkbox" name="lflow_auditable_product_ids[]" value="<?php echo absint( $prod_id ); ?>" <?php checked( $is_checked ); ?> style="margin-right: 12px;">
+                                        <span style="font-size: 13.5px;"><?php echo esc_html( $prod_title ); ?></span>
+                                        <span style="margin-left: auto; font-size: 11px; color: #8c8f94; font-family: monospace;">ID: <?php echo absint( $prod_id ); ?></span>
+                                    </label>
+                                </div>
+                            <?php else : 
+                                // Variable product
+                            ?>
+                                <div class="lflow-audit-product-row lflow-audit-variable-row" data-title="<?php echo esc_attr( strtolower( $prod_title ) ); ?>">
+                                    <!-- Parent Header -->
+                                    <div style="display:flex; align-items: center; width: 100%;">
+                                        <label style="display:flex; align-items: center; width: 100%; cursor: pointer; font-weight: 600; color: #1d2327; margin: 0;">
+                                            <input type="checkbox" class="lflow-audit-parent-checkbox" data-product-id="<?php echo absint( $prod_id ); ?>" style="margin-right: 12px;">
+                                            <span style="font-size: 13.5px; color: #135e96;">📦 <?php echo esc_html( $prod_title ); ?></span>
+                                            <span style="margin-left: auto; font-size: 11px; color: #8c8f94; font-family: monospace;">ID: <?php echo absint( $prod_id ); ?></span>
+                                        </label>
+                                    </div>
+                                    <!-- Variations Indented list -->
+                                    <div class="lflow-audit-variations-container" style="padding-left: 28px; margin-top: 6px; width: 100%;">
+                                        <?php foreach ( $variations as $var_id => $var_title ) : 
+                                            $is_var_checked = in_array( $var_id, $whitelisted_ids, true );
+                                            // Clean variation title
+                                            $clean_var_title = str_replace( $prod_title . ' — ', '', $var_title );
+                                            if ( $clean_var_title === $var_title ) {
+                                                $clean_var_title = str_replace( $prod_title, '', $var_title );
+                                            }
+                                            $clean_var_title = ltrim( $clean_var_title, ' -,—' );
+                                        ?>
+                                            <div class="lflow-audit-variation-row" data-title="<?php echo esc_attr( strtolower( $prod_title . ' ' . $clean_var_title ) ); ?>" style="display:flex; align-items: center; padding: 4px 0;">
+                                                <label style="display:flex; align-items: center; width: 100%; cursor: pointer; font-weight: 500; color: #2c3338; margin: 0;">
+                                                    <input type="checkbox" name="lflow_auditable_product_ids[]" class="lflow-audit-variation-checkbox" data-parent-id="<?php echo absint( $prod_id ); ?>" value="<?php echo absint( $var_id ); ?>" <?php checked( $is_var_checked ); ?> style="margin-right: 10px;">
+                                                    <span style="font-size: 12.5px;">↳ <?php echo esc_html( $clean_var_title ); ?></span>
+                                                    <span style="margin-left: auto; font-size: 10px; color: #8c8f94; font-family: monospace;">ID: <?php echo absint( $var_id ); ?></span>
+                                                </label>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -499,29 +547,108 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
 <script>
 jQuery(document).ready(function($) {
-    // Live Search Filter
+    // ── Checkbox logic for master parent & indeterminate state ──
+
+    // 1. Initial run to update parents based on active children
+    $('.lflow-audit-parent-checkbox').each(function() {
+        var prodId = $(this).data('product-id');
+        var $children = $('.lflow-audit-variation-checkbox[data-parent-id="' + prodId + '"]');
+        var total = $children.length;
+        var checked = $children.filter(':checked').length;
+
+        if (total > 0) {
+            if (checked === total) {
+                $(this).prop('checked', true).prop('indeterminate', false);
+            } else if (checked === 0) {
+                $(this).prop('checked', false).prop('indeterminate', false);
+            } else {
+                $(this).prop('checked', false).prop('indeterminate', true);
+            }
+        }
+    });
+
+    // 2. Parent toggles all children
+    $('.lflow-audit-parent-checkbox').on('change', function() {
+        var checked = this.checked;
+        var prodId = $(this).data('product-id');
+        // If checked is false but it was indeterminate, it will clear properly
+        $('.lflow-audit-variation-checkbox[data-parent-id="' + prodId + '"]').prop('checked', checked);
+    });
+
+    // 3. Child checkbox change updates parent state
+    $('.lflow-audit-variation-checkbox').on('change', function() {
+        var parentId = $(this).data('parent-id');
+        var $parent = $('.lflow-audit-parent-checkbox[data-product-id="' + parentId + '"]');
+        var $children = $('.lflow-audit-variation-checkbox[data-parent-id="' + parentId + '"]');
+        var total = $children.length;
+        var checked = $children.filter(':checked').length;
+
+        if (checked === total) {
+            $parent.prop('checked', true).prop('indeterminate', false);
+        } else if (checked === 0) {
+            $parent.prop('checked', false).prop('indeterminate', false);
+        } else {
+            $parent.prop('checked', false).prop('indeterminate', true);
+        }
+    });
+
+    // ── Live Search Filter ──
     $('#lflow-audit-search').on('input', function() {
         var term = $(this).val().toLowerCase().trim();
         $('.lflow-audit-product-row').each(function() {
-            var title = $(this).data('title');
-            if (title.indexOf(term) !== -1) {
-                $(this).show();
+            var $row = $(this);
+            
+            if ($row.hasClass('lflow-audit-variable-row')) {
+                var parentTitle = $row.data('title');
+                var match = parentTitle.indexOf(term) !== -1;
+                
+                // Inspect variation rows
+                var visibleVars = 0;
+                $row.find('.lflow-audit-variation-row').each(function() {
+                    var varTitle = $(this).data('title');
+                    if (varTitle.indexOf(term) !== -1 || parentTitle.indexOf(term) !== -1) {
+                        $(this).show();
+                        visibleVars++;
+                    } else {
+                        $(this).hide();
+                    }
+                });
+
+                if (match || visibleVars > 0) {
+                    $row.show();
+                    // If the parent didn't match directly, only show variations that match
+                    if (!match) {
+                        $row.find('.lflow-audit-variations-container').show();
+                    } else {
+                        // Parent matches, show all variations
+                        $row.find('.lflow-audit-variation-row').show();
+                        $row.find('.lflow-audit-variations-container').show();
+                    }
+                } else {
+                    $row.hide();
+                }
             } else {
-                $(this).hide();
+                // Simple product row
+                var title = $row.data('title');
+                if (title.indexOf(term) !== -1) {
+                    $row.show();
+                } else {
+                    $row.hide();
+                }
             }
         });
     });
 
-    // Select All
+    // Select All (targets all visible checkboxes, both simple and variations)
     $('#lflow-audit-select-all').on('click', function(e) {
         e.preventDefault();
-        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', true);
+        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', true).trigger('change');
     });
 
     // Deselect All
     $('#lflow-audit-deselect-all').on('click', function(e) {
         e.preventDefault();
-        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', false);
+        $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', false).trigger('change');
     });
 });
 </script>

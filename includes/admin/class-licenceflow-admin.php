@@ -523,8 +523,10 @@ class LicenceFlow_Admin {
             foreach ( $license_ids as $lid ) {
                 $license = LicenceFlow_License_DB::get( $lid );
                 if ( $license && ( $license['license_type'] ?? 'key' ) === 'key' ) {
-                    if ( ! in_array( (int) $license['product_id'], $whitelisted_ids, true ) ) {
-                        continue; // Skip products not whitelisted for online audit
+                    $license_var_id = (int) ( $license['variation_id'] ?? 0 );
+                    $match_id       = $license_var_id > 0 ? $license_var_id : (int) $license['product_id'];
+                    if ( ! in_array( $match_id, $whitelisted_ids, true ) ) {
+                        continue; // Skip products/variations not whitelisted for online audit
                     }
                     $plain_key = lflow_decrypt( $license['license_key'] ?? '' );
                     if ( preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
@@ -806,8 +808,11 @@ class LicenceFlow_Admin {
         }
 
         $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
-        if ( ! in_array( (int) $license['product_id'], $whitelisted_ids, true ) ) {
-            wp_send_json_error( array( 'message' => __( "Ce produit n'est pas configuré pour la vérification en ligne. Activez-le dans les Réglages.", 'licenceflow' ) ) );
+        $license_var_id  = (int) ( $license['variation_id'] ?? 0 );
+        $match_id        = $license_var_id > 0 ? $license_var_id : (int) $license['product_id'];
+
+        if ( ! in_array( $match_id, $whitelisted_ids, true ) ) {
+            wp_send_json_error( array( 'message' => __( "Ce produit ou cette variation n'est pas configuré(e) pour la vérification en ligne. Activez-le/la dans les Réglages.", 'licenceflow' ) ) );
         }
 
         $plain_key = lflow_decrypt( $license['license_key'] ?? '' );

@@ -20,9 +20,10 @@ Il remplace un plugin existant (FS-License-Manager v5.1.7 de Firas Saidi) avec u
 
 ---
 
-## État actuel : v1.5.0 — en production / Analyse Sélective & Filtres Actifs
+## État actuel : v1.5.1 — en production / Liste Blanche Granulaire par Variation
 
 Le plugin est opérationnel. Les développements récents couvrent :
+- **Liste Blanche par Variation (v1.5.1)** : Whitelisting chirurgical au niveau de la variation de produit (ex: Retail vs Bind) avec états indéterminés réactifs (HTML5 `indeterminate`) en JS, et isolation SQL/AJAX fine.
 - **Audit & Vérification sélective (v1.5.0)** : Liste blanche de produits via un panneau central dynamique de recherche en direct, enforcement SQL à 18h et contrôles d'accès AJAX/UI de sécurité.
 - **Résilience pannes réseau (v1.5.0)** : Coupures et timeouts de l'API signalés proprement au lieu de désactiver faussement les clés.
 - Livraison automatique WooCommerce + modes FIFO, LIFO, Best Fit
@@ -287,4 +288,4 @@ wp i18n make-pot . languages/licenceflow.pot --domain=licenceflow
 
 ---
 
-*Dernière mise à jour : v1.5.0*
+*Dernière mise à jour : v1.5.1*

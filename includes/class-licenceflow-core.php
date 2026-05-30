@@ -557,14 +557,18 @@ class LicenceFlow_Core {
         }
         $ids_in = implode( ',', array_map( 'intval', $whitelisted_ids ) );
 
-        // Fetch all available keys for whitelisted products
+        // Fetch all available keys for whitelisted products/variations
         $rows = $wpdb->get_results(
             "SELECT license_id, product_id, variation_id, license_key 
              FROM {$wpdb->prefix}lflow_licenses 
              WHERE license_status = 'available' 
                AND license_type = 'key' 
                AND remaining_delivre_x_times > 0
-               AND product_id IN ($ids_in)",
+               AND (
+                   (variation_id = 0 AND product_id IN ($ids_in))
+                   OR
+                   (variation_id > 0 AND variation_id IN ($ids_in))
+               )",
             ARRAY_A
         );
 
