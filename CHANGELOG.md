@@ -1,5 +1,16 @@
 # Changelog — LicenceFlow
 
+## [1.5.0] — 2026-05-30
+
+### Ajouté
+- **Onglet « Audit & Vérification » dans les Réglages** — panneau central interactif permettant de configurer la liste blanche des produits éligibles à la vérification Microsoft en ligne (`lflow_auditable_product_ids`).
+- **Grille de sélection dynamique hors ligne** — champ de recherche dynamique en JS pour filtrer instantanément les produits, cocher et décocher les produits éligibles.
+- **Enforcement strict de l'analyse automatique** — le cron d'audit quotidien de 18h00 ne sélectionne et n'analyse désormais que les clés de produits whitelistes, évitant tout faux positif sur les clés non éligibles (Office 365, clés antivirus, etc.).
+- **Enforcement des vérifications manuelles et en masse** — bouton 🔍 **Tester** masqué en liste sur les lignes non autorisées, et contrôle d'accès de sécurité renforcé côté serveur sur les endpoints AJAX unitaires et en volume.
+
+### Corrigé
+- **Gestion intelligente des erreurs réseau / Timeouts** — correction des cas où des timeouts ou micro-coupures de l'API signalaient à tort des clés comme bloquées. Les erreurs de connexion sont désormais ignorées par le cron de 18h et signalées sous forme de badge violet "Erreur" sur l'application React au lieu de désactiver la clé.
+
 ## [1.4.2] — 2026-05-05
 
 ### Corrigé
