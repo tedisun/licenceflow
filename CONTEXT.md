@@ -1,6 +1,12 @@
 # LicenceFlow — Contexte de développement
 
-> **Pour Claude :** Lis ce fichier en début de session pour comprendre où on en est.
+> **Pour l'Assistant IA :** Lis ce fichier en début de session pour comprendre où on en est.
+> 
+> 🔴 **RÈGLE ABSOLUE DE VERSIONING :** Chaque fois qu'une nouvelle fonctionnalité, modification majeure ou correction de bug est implémentée et poussée avec succès, vous **devez impérativement** :
+> 1. Incrémenter le numéro de version dans `licenceflow.php` (à la fois dans l'en-tête du fichier `Version: X.Y.Z` et dans la constante `define( 'LFLOW_VERSION', 'X.Y.Z' )`).
+> 2. Documenter en détail ce changement en créant une entrée datée sous forme de version dans `CHANGELOG.md`.
+> 3. Mettre à jour la section "État actuel" et la ligne de "Dernière mise à jour" à la fin de ce fichier `CONTEXT.md`.
+> Ce processus est obligatoire pour bust le cache d'actifs CSS/JS des navigateurs de l'administrateur.
 
 ---
 
@@ -14,9 +20,11 @@ Il remplace un plugin existant (FS-License-Manager v5.1.7 de Firas Saidi) avec u
 
 ---
 
-## État actuel : v1.4.2 — en production / correction de bugs
+## État actuel : v1.5.0 — en production / Analyse Sélective & Filtres Actifs
 
 Le plugin est opérationnel. Les développements récents couvrent :
+- **Audit & Vérification sélective (v1.5.0)** : Liste blanche de produits via un panneau central dynamique de recherche en direct, enforcement SQL à 18h et contrôles d'accès AJAX/UI de sécurité.
+- **Résilience pannes réseau (v1.5.0)** : Coupures et timeouts de l'API signalés proprement au lieu de désactiver faussement les clés.
 - Livraison automatique WooCommerce + modes FIFO, LIFO, Best Fit
 - Système d'alertes stock (email + WhatsApp via WootsApp Notifier)
 - API REST avec fix du `PUT /licenses/{id}` (license_type préservé si absent)
@@ -279,4 +287,4 @@ wp i18n make-pot . languages/licenceflow.pot --domain=licenceflow
 
 ---
 
-*Dernière mise à jour : v1.4.2*
+*Dernière mise à jour : v1.5.0*
