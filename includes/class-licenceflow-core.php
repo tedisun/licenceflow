@@ -686,13 +686,16 @@ class LicenceFlow_Core {
                     $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
                 }
 
-                // If key is blocked (ignore temporary API connection errors or timeouts)
-                if ( $status === 'blocked' ) {
+                // If key is blocked or requires phone activation (ignore temporary API connection errors or timeouts)
+                if ( $status === 'blocked' || $status === 'phone_activation' ) {
                     $row = $item['row'];
                     $msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                    if ( $status === 'phone_activation' ) {
+                        $msg = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
+                    }
                     $date = current_time( 'Y-m-d H:i:s' );
                     $admin_note = trim( $row['admin_notes'] ?? '' );
-                    $new_note = "[Audit $date] Bloquée par Microsoft : $msg. Retirée du stock automatiquement.";
+                    $new_note = "[Audit $date] Retirée du stock : $msg";
                     $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
 
                     // Update key status to inactive

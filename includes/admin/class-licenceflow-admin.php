@@ -637,15 +637,18 @@ class LicenceFlow_Admin {
                         $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
                     }
 
-                    if ( $status === 'blocked' ) {
+                    if ( $status === 'blocked' || $status === 'phone_activation' ) {
                         $blocked_count++;
                         $row = $item['row'];
                         $msg = $res['message'] ?? 'Bloquée par Microsoft.';
+                        if ( $status === 'phone_activation' ) {
+                            $msg = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
+                        }
                         $err = $res['error_code'] ?? '0x0';
                         $date = current_time( 'Y-m-d H:i:s' );
                         
                         $admin_note = trim( $row['admin_notes'] ?? '' );
-                        $new_note = "[Test en masse $date] Bloquée par Microsoft : $msg (Code: $err). Retirée du stock automatiquement.";
+                        $new_note = "[Test en masse $date] Retirée du stock : $msg (Code: $err).";
                         $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
 
                         // Mark status as inactive
@@ -910,18 +913,19 @@ class LicenceFlow_Admin {
         }
 
         $formatted_msg = '';
-        if ( $status === 'blocked' ) {
+        if ( $status === 'blocked' || $status === 'phone_activation' ) {
+            $msg_clean = ( $status === 'phone_activation' ) ? __( 'Désactivée car nécessite une activation par téléphone alors qu\'une activation en ligne est promise.', 'licenceflow' ) : $msg;
             $formatted_msg = sprintf(
                 /* translators: 1: message, 2: error code */
                 __( 'Clé Bloquée / Inactive : %1$s (Code: %2$s)', 'licenceflow' ),
-                $msg,
+                $msg_clean,
                 $error_code
             );
 
-            // Automatically deactivate key if it is blocked
+            // Automatically deactivate key if it is blocked or requires phone activation
             $date = current_time( 'Y-m-d H:i:s' );
             $admin_note = trim( $license['admin_notes'] ?? '' );
-            $new_note = "[Test direct $date] Bloquée par Microsoft : $msg (Code: $error_code). Retirée du stock.";
+            $new_note = "[Test direct $date] Retirée du stock : $msg_clean (Code: $error_code).";
             $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
 
             LicenceFlow_License_DB::update( $license_id, array(
@@ -935,7 +939,7 @@ class LicenceFlow_Admin {
         } elseif ( $status === 'error' ) {
             wp_send_json_error( array( 'message' => __( 'Erreur de connexion ou Timeout de l\'API. Veuillez réessayer.', 'licenceflow' ) ) );
         } else {
-            // Valid (online_key or phone_activation)
+            // Valid (online_key)
             $formatted_msg = sprintf(
                 /* translators: 1: product name, 2: message */
                 __( 'Clé Valide : %1$s. %2$s', 'licenceflow' ),

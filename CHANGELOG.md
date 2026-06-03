@@ -1,5 +1,10 @@
 # Changelog — LicenceFlow
 
+## [1.5.3] — 2026-06-03
+
+### Ajouté
+- **Désactivation pour Activation Téléphonique (phone_activation)** — Désactivation automatique des clés Microsoft (Windows et Office) lors de l'audit quotidien, des vérifications unitaires et des vérifications en lot si elles renvoient le statut d'activation par téléphone uniquement (afin d'honorer la promesse d'activation en ligne faite aux clients).
+
 ## [1.5.2] — 2026-06-03
 
 ### Ajouté
