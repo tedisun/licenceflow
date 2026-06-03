@@ -553,6 +553,14 @@ class LicenceFlow_Core {
 
         $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
         if ( empty( $whitelisted_ids ) ) {
+            $this->log_audit_result( array(
+                'date'      => current_time( 'Y-m-d H:i:s' ),
+                'status'    => 'skipped',
+                'checked'   => 0,
+                'blocked'   => 0,
+                'message'   => __( 'Aucun produit ou variation n\'est configuré pour l\'audit en ligne dans les Réglages.', 'licenceflow' ),
+                'anomalies' => array(),
+            ) );
             return; // No products configured for online audit
         }
         $ids_in = implode( ',', array_map( 'intval', $whitelisted_ids ) );
@@ -573,6 +581,14 @@ class LicenceFlow_Core {
         );
 
         if ( empty( $rows ) ) {
+            $this->log_audit_result( array(
+                'date'      => current_time( 'Y-m-d H:i:s' ),
+                'status'    => 'completed',
+                'checked'   => 0,
+                'blocked'   => 0,
+                'message'   => __( 'Aucune licence disponible en stock à vérifier.', 'licenceflow' ),
+                'anomalies' => array(),
+            ) );
             return;
         }
 
@@ -589,6 +605,14 @@ class LicenceFlow_Core {
         }
 
         if ( empty( $microsoft_keys ) ) {
+            $this->log_audit_result( array(
+                'date'      => current_time( 'Y-m-d H:i:s' ),
+                'status'    => 'completed',
+                'checked'   => 0,
+                'blocked'   => 0,
+                'message'   => __( 'Aucune clé au format Microsoft 5x5 valide trouvée en stock parmi les produits configurés.', 'licenceflow' ),
+                'anomalies' => array(),
+            ) );
             return;
         }
 
@@ -638,8 +662,32 @@ class LicenceFlow_Core {
 
                 $res = $results_by_key[ $plain_key ];
 
+                $row = $item['row'];
+                $status = $res['status'] ?? 'unknown';
+                $remaining = $res['remaining_activations'] ?? null;
+
+                // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
+                $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
+                if ( ! $is_office_2024_ltsc ) {
+                    $product = wc_get_product( $row['product_id'] );
+                    if ( $product ) {
+                        $product_name_lower = strtolower( $product->get_name() );
+                        $product_slug_lower = strtolower( $product->get_slug() );
+                        if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
+                             strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
+                            $is_office_2024_ltsc = true;
+                        }
+                    }
+                }
+
+                if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+                    $status = 'blocked';
+                    $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
+                    $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
+                }
+
                 // If key is blocked (ignore temporary API connection errors or timeouts)
-                if ( isset( $res['status'] ) && $res['status'] === 'blocked' ) {
+                if ( $status === 'blocked' ) {
                     $row = $item['row'];
                     $msg = $res['message'] ?? 'Bloquée par Microsoft.';
                     $date = current_time( 'Y-m-d H:i:s' );
@@ -666,6 +714,30 @@ class LicenceFlow_Core {
                 }
             }
         }
+
+        // Log audit completion
+        $total_checked = count( $microsoft_keys );
+        $blocked_count = count( $anomalies );
+        $log_message   = sprintf(
+            /* translators: 1: total keys, 2: blocked keys */
+            _n(
+                'Audit terminé : %1$d clé vérifiée, %2$d clé bloquée/inactive retirée.',
+                'Audit terminé : %1$d clés vérifiées, %2$d clés bloquées/inactives retirées.',
+                $total_checked,
+                'licenceflow'
+            ),
+            $total_checked,
+            $blocked_count
+        );
+
+        $this->log_audit_result( array(
+            'date'      => current_time( 'Y-m-d H:i:s' ),
+            'status'    => 'completed',
+            'checked'   => $total_checked,
+            'blocked'   => $blocked_count,
+            'message'   => $log_message,
+            'anomalies' => $anomalies,
+        ) );
 
         // Email alert if anomalies are found
         if ( ! empty( $anomalies ) ) {
@@ -811,6 +883,21 @@ class LicenceFlow_Core {
         }
 
         return $result;
+    }
+
+    /**
+     * Store the audit logs in WordPress options, capping at 50 logs.
+     */
+    private function log_audit_result( array $log_entry ): void {
+        $logs = get_option( 'lflow_audit_logs', array() );
+        if ( ! is_array( $logs ) ) {
+            $logs = array();
+        }
+        array_unshift( $logs, $log_entry );
+        if ( count( $logs ) > 50 ) {
+            $logs = array_slice( $logs, 0, 50 );
+        }
+        update_option( 'lflow_audit_logs', $logs );
     }
 }
 

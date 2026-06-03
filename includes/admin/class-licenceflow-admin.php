@@ -114,6 +114,15 @@ class LicenceFlow_Admin {
 
         add_submenu_page(
             'licenceflow',
+            __( 'Logs d\'audit', 'licenceflow' ),
+            __( 'Logs d\'audit', 'licenceflow' ),
+            'manage_woocommerce',
+            'lflow-audit-logs',
+            array( $this, 'render_audit_logs' )
+        );
+
+        add_submenu_page(
+            'licenceflow',
             __( 'Documentation API', 'licenceflow' ),
             __( 'API', 'licenceflow' ),
             'manage_woocommerce',
@@ -134,6 +143,7 @@ class LicenceFlow_Admin {
             'licenceflow_page_lflow-import-export',
             'licenceflow_page_lflow-settings',
             'licenceflow_page_lflow-api-docs',
+            'licenceflow_page_lflow-audit-logs',
         );
 
         $on_product_page = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
@@ -261,6 +271,11 @@ class LicenceFlow_Admin {
     public function render_api_docs(): void {
         LicenceFlow_Security::get_instance()->require_capability();
         require LFLOW_PATH . 'includes/admin/page-api-docs.php';
+    }
+
+    public function render_audit_logs(): void {
+        LicenceFlow_Security::get_instance()->require_capability();
+        require LFLOW_PATH . 'includes/admin/page-audit-logs.php';
     }
 
     // ── AJAX: list licenses (live search / AJAX filter) ───────────────────────
@@ -598,7 +613,29 @@ class LicenceFlow_Admin {
                     $res = $results_by_key[ $plain_key ];
                     $checked++;
 
+                    $row = $item['row'];
                     $status = $res['status'] ?? 'unknown';
+                    $remaining = $res['remaining_activations'] ?? null;
+
+                    // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
+                    $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
+                    if ( ! $is_office_2024_ltsc ) {
+                        $product = wc_get_product( $row['product_id'] );
+                        if ( $product ) {
+                            $product_name_lower = strtolower( $product->get_name() );
+                            $product_slug_lower = strtolower( $product->get_slug() );
+                            if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
+                                 strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
+                                $is_office_2024_ltsc = true;
+                            }
+                        }
+                    }
+
+                    if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+                        $status = 'blocked';
+                        $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
+                        $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
+                    }
 
                     if ( $status === 'blocked' ) {
                         $blocked_count++;
@@ -851,6 +888,26 @@ class LicenceFlow_Admin {
         $error_code = $result['error_code'] ?? '';
         $remaining = $result['remaining_activations'] ?? null;
         $msg = $result['message'] ?? '';
+
+        // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
+        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_2024_ltsc ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
+                    $is_office_2024_ltsc = true;
+                }
+            }
+        }
+
+        if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+            $status = 'blocked';
+            $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
+            $error_code = 'NO_ACTIVATIONS_LEFT';
+        }
 
         $formatted_msg = '';
         if ( $status === 'blocked' ) {

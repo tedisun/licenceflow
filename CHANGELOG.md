@@ -1,5 +1,11 @@
 # Changelog — LicenceFlow
 
+## [1.5.2] — 2026-06-03
+
+### Ajouté
+- **Historique & Journalisation d'audit** — Nouvelle page d'administration « Logs d'audit » pour visualiser le résultat des 50 derniers audits quotidiens (clés vérifiées, clés désactivées, statut général et détails dépliables des anomalies détectées).
+- **Disjoncteur MAK (Office 2024 LTSC)** — Exclusion et désactivation automatique (`inactive`) d'une clé lors des scans (quotidiens, unitaires ou en lot) si son quota d'activations restantes tombe à 0 ou n'est plus disponible (`N/A`).
+
 ## [1.5.1] — 2026-05-30
 
 ### Ajouté
