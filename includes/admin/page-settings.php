@@ -431,7 +431,7 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
 
             <div style="background:#fff; border:1px solid #ddd; border-left:4px solid #2271b1; border-radius:3px; padding:16px 20px; margin:16px 0; max-width:800px;">
                 <h3 style="margin:0 0 10px; font-size:14px; color:#1d2327;"><?php esc_html_e( 'Vérification sélective des clés Microsoft (Retail)', 'licenceflow' ); ?></h3>
-                <p style="margin:0 0 10px;"><?php esc_html_e( 'Cochez uniquement les produits contenant des clés de licence Microsoft éligibles à la vérification en ligne (ex: Windows Retail, Office Retail). Les produits non cochés (ex: Microsoft 365, clés antivirus, clés liées au compte Microsoft) seront exclus de l\'analyse automatique de 18h et de la vérification manuelle pour éviter tout faux positif ou désactivation accidentelle.', 'licenceflow' ); ?></p>
+                <p style="margin:0 0 10px;"><?php esc_html_e( 'Cochez uniquement les produits contenant des clés de licence Microsoft éligibles à la vérification en ligne (ex: Windows Retail, Office Retail). Les produits non cochés (ex: Microsoft 365, clés antivirus, clés liées au compte Microsoft) seront exclus de l\'analyse automatique (toutes les 8 heures) et de la vérification manuelle pour éviter tout faux positif ou désactivation accidentelle.', 'licenceflow' ); ?></p>
             </div>
 
             <!-- Custom control deck layout -->

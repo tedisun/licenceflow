@@ -561,6 +561,7 @@ class LicenceFlow_Admin {
             $valid_count = 0;
             $blocked_count = 0;
             $failures = 0;
+            $bulk_anomalies = array();
 
             $batch_size = 30;
             $chunks = array_chunk( $licenses, $batch_size, true );
@@ -617,6 +618,9 @@ class LicenceFlow_Admin {
                     $status = $res['status'] ?? 'unknown';
                     $remaining = $res['remaining_activations'] ?? null;
 
+                    // Détection d'une clé MAK générique (Office ou Windows)
+                    $is_mak = ( ! empty( $res['product_name'] ) && strpos( strtolower( $res['product_name'] ), 'mak' ) !== false );
+
                     // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
                     $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
                     if ( ! $is_office_2024_ltsc ) {
@@ -631,7 +635,8 @@ class LicenceFlow_Admin {
                         }
                     }
 
-                    if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+                    // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
+                    if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
                         $status = 'blocked';
                         $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
                         $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
@@ -663,6 +668,15 @@ class LicenceFlow_Admin {
                             'product_id'   => (int) $row['product_id'],
                             'variation_id' => (int) $row['variation_id'],
                         );
+
+                        // Capture bulk anomalies
+                        $bulk_anomalies[] = array(
+                            'license_id'   => $lid,
+                            'product_id'   => (int) $row['product_id'],
+                            'variation_id' => (int) $row['variation_id'],
+                            'key'          => $item['key'],
+                            'message'      => $msg,
+                        );
                     } elseif ( $status === 'error' ) {
                         $failures++;
                     } else {
@@ -677,6 +691,18 @@ class LicenceFlow_Admin {
                 foreach ( $products_to_sync as $prod ) {
                     $core->sync_product_stock( $prod['product_id'], $prod['variation_id'] );
                 }
+            }
+
+            // Log manual bulk action in lflow_audit_logs only if at least one key gets deactivated
+            if ( $checked > 0 && $blocked_count > 0 ) {
+                LicenceFlow_Core::get_instance()->log_audit_result( array(
+                    'date'      => current_time( 'Y-m-d H:i:s' ),
+                    'status'    => 'completed',
+                    'checked'   => $checked,
+                    'blocked'   => $blocked_count,
+                    'message'   => sprintf( __( 'Vérification manuelle (en masse) : %d clé(s) bloquée(s)/inactive(s) retirée(s) du stock.', 'licenceflow' ), $blocked_count ),
+                    'anomalies' => $bulk_anomalies,
+                ) );
             }
 
             $skipped = count( $license_ids ) - count( $licenses );
@@ -892,6 +918,9 @@ class LicenceFlow_Admin {
         $remaining = $result['remaining_activations'] ?? null;
         $msg = $result['message'] ?? '';
 
+        // Détection d'une clé MAK générique (Office ou Windows)
+        $is_mak = ( ! empty( $result['product_name'] ) && strpos( strtolower( $result['product_name'] ), 'mak' ) !== false );
+
         // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
         $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
         if ( ! $is_office_2024_ltsc ) {
@@ -906,7 +935,8 @@ class LicenceFlow_Admin {
             }
         }
 
-        if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+        // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
+        if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
             $status = 'blocked';
             $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
             $error_code = 'NO_ACTIVATIONS_LEFT';
@@ -936,6 +966,24 @@ class LicenceFlow_Admin {
             // Sync stock
             LicenceFlow_Core::get_instance()->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
             $valid = false;
+
+            // Log manual single check in lflow_audit_logs only if the key gets deactivated
+            LicenceFlow_Core::get_instance()->log_audit_result( array(
+                'date'      => current_time( 'Y-m-d H:i:s' ),
+                'status'    => 'completed',
+                'checked'   => 1,
+                'blocked'   => 1,
+                'message'   => sprintf( __( 'Vérification manuelle (clé #%d) : Clé désactivée.', 'licenceflow' ), $license_id ),
+                'anomalies' => array(
+                    array(
+                        'license_id'   => $license_id,
+                        'product_id'   => (int) $license['product_id'],
+                        'variation_id' => (int) $license['variation_id'],
+                        'key'          => $plain_key,
+                        'message'      => $msg_clean,
+                    )
+                ),
+            ) );
         } elseif ( $status === 'error' ) {
             wp_send_json_error( array( 'message' => __( 'Erreur de connexion ou Timeout de l\'API. Veuillez réessayer.', 'licenceflow' ) ) );
         } else {

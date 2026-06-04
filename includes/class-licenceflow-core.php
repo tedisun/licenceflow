@@ -47,6 +47,7 @@ class LicenceFlow_Core {
         // Cron
         add_action( 'lflow_daily_cron',       array( $this, 'run_daily_cron' ) );
         add_action( 'lflow_daily_audit_cron', array( $this, 'run_daily_audit' ) );
+        add_action( 'wp_loaded',              array( $this, 'maybe_schedule_audit_cron' ) );
     }
 
     public static function get_instance(): self {
@@ -666,6 +667,9 @@ class LicenceFlow_Core {
                 $status = $res['status'] ?? 'unknown';
                 $remaining = $res['remaining_activations'] ?? null;
 
+                // Détection d'une clé MAK générique (Office ou Windows)
+                $is_mak = ( ! empty( $res['product_name'] ) && strpos( strtolower( $res['product_name'] ), 'mak' ) !== false );
+
                 // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
                 $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
                 if ( ! $is_office_2024_ltsc ) {
@@ -680,7 +684,8 @@ class LicenceFlow_Core {
                     }
                 }
 
-                if ( $is_office_2024_ltsc && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+                // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
+                if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
                     $status = 'blocked';
                     $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
                     $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
@@ -761,7 +766,7 @@ class LicenceFlow_Core {
         );
 
         $body  = '<p style="font-size: 1.1em; color: #1d2327;">' . sprintf(
-            __( 'L\'audit de santé quotidien a détecté <strong>%d clé(s) Microsoft inactive(s) ou bloquée(s)</strong>. Elles ont été retirées du stock automatiquement pour préserver la qualité de vos ventes.', 'licenceflow' ),
+            __( 'L\'audit de santé automatique a détecté <strong>%d clé(s) Microsoft inactive(s) ou bloquée(s)</strong>. Elles ont été retirées du stock automatiquement pour préserver la qualité de vos ventes.', 'licenceflow' ),
             $count
         ) . '</p>';
         $body .= '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%; border:1px solid #ccd0d4; font-family: sans-serif;">';
@@ -790,7 +795,7 @@ class LicenceFlow_Core {
 
         $body .= '</table>';
         $body .= '<p style="margin-top:20px;"><a href="' . admin_url( 'admin.php?page=lflow-licenses' ) . '" style="display:inline-block; padding:8px 16px; background:#2271b1; color:#fff; text-decoration:none; border-radius:4px; font-weight:600;">' . esc_html__( 'Accéder à la gestion des licences', 'licenceflow' ) . '</a></p>';
-        $body .= '<p style="font-size:0.85em; color:#646970; margin-top:30px;">' . esc_html__( 'Cet audit est exécuté quotidiennement à 18h00.', 'licenceflow' ) . '</p>';
+        $body .= '<p style="font-size:0.85em; color:#646970; margin-top:30px;">' . esc_html__( 'Cet audit est exécuté automatiquement toutes les 8 heures (à 06h00, 14h00 et 22h00).', 'licenceflow' ) . '</p>';
 
         wp_mail( $to, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
@@ -891,7 +896,7 @@ class LicenceFlow_Core {
     /**
      * Store the audit logs in WordPress options, capping at 50 logs.
      */
-    private function log_audit_result( array $log_entry ): void {
+    public function log_audit_result( array $log_entry ): void {
         $logs = get_option( 'lflow_audit_logs', array() );
         if ( ! is_array( $logs ) ) {
             $logs = array();
@@ -901,6 +906,30 @@ class LicenceFlow_Core {
             $logs = array_slice( $logs, 0, 50 );
         }
         update_option( 'lflow_audit_logs', $logs );
+    }
+
+    /**
+     * Verify and automatically reschedule the audit cron if needed.
+     */
+    public function maybe_schedule_audit_cron(): void {
+        $schedule = wp_get_schedule( 'lflow_daily_audit_cron' );
+        if ( 'thrice_daily' !== $schedule ) {
+            if ( $schedule ) {
+                wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
+            }
+            
+            $time_string = '06:00:00';
+            $timezone    = wp_timezone();
+            $datetime    = new DateTime( $time_string, $timezone );
+            $timestamp   = $datetime->getTimestamp();
+
+            // Calcule le prochain créneau horaire (toutes les 8h)
+            while ( $timestamp < time() ) {
+                $timestamp += 8 * 3600;
+            }
+
+            wp_schedule_event( $timestamp, 'thrice_daily', 'lflow_daily_audit_cron' );
+        }
     }
 }
 

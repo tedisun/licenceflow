@@ -17,7 +17,7 @@ $logs = get_option( 'lflow_audit_logs', array() );
     </h1>
     
     <p class="description" style="margin-bottom: 20px;">
-        <?php esc_html_e( 'Retrouvez ici le journal des audits automatiques effectués chaque jour à 18h00. Ce système vérifie la validité de vos clés Microsoft et retire automatiquement du stock celles qui ont été bloquées ou dont le quota d\'activation MAK est épuisé.', 'licenceflow' ); ?>
+        <?php esc_html_e( 'Retrouvez ici le journal des audits automatiques effectués toutes les 8 heures (à 06h00, 14h00 et 22h00). Ce système vérifie la validité de vos clés Microsoft et retire automatiquement du stock celles qui ont été bloquées ou dont le quota d\'activation MAK est épuisé.', 'licenceflow' ); ?>
     </p>
 
     <div class="lflow-card">
@@ -27,7 +27,7 @@ $logs = get_option( 'lflow_audit_logs', array() );
         
         <?php if ( empty( $logs ) ) : ?>
             <p style="color:#646970; font-style: italic; padding: 15px 0; text-align: center;">
-                <?php esc_html_e( 'Aucun log d\'audit enregistré pour le moment. Le premier scan aura lieu aujourd\'hui à 18h00.', 'licenceflow' ); ?>
+                <?php esc_html_e( 'Aucun log d\'audit enregistré pour le moment. Le premier scan aura lieu au prochain créneau planifié (à 06h00, 14h00 ou 22h00).', 'licenceflow' ); ?>
             </p>
         <?php else : ?>
             <table class="wp-list-table widefat fixed striped posts" style="margin-top: 10px; border: 1px solid #c3c4c7; box-shadow: none;">

@@ -221,7 +221,7 @@
                     license_id: id
                 }, function (response) {
                     if (response.success) {
-                        LFLOW.showNotice(response.data.message, 'success');
+                        LFLOW.showResultModal(id, response.data);
                         // If checking a key deactivates it, reload table to reflect changes immediately
                         if (response.data.valid === false && typeof LFLOW._loadTable === 'function') {
                             LFLOW._loadTable();
@@ -732,6 +732,80 @@
                 result[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
             });
             return result;
+        },
+
+        showResultModal: function (licenseId, data) {
+            // data = { valid, message, product_name, status, error_code, remaining }
+            var isValid = data.valid === true;
+            var $overlay = $('#lflow-result-modal-overlay');
+
+            // Create modal HTML if not already in DOM
+            if (!$overlay.length) {
+                $overlay = $('<div id="lflow-result-modal-overlay"></div>');
+                var $modal = $('<div id="lflow-result-modal" role="dialog" aria-modal="true"></div>');
+                $modal.append(
+                    '<div class="lflow-modal-header">' +
+                        '<h2 class="lflow-modal-title">Rapport d\'analyse de clé</h2>' +
+                        '<button class="lflow-modal-close" aria-label="Fermer">&times;</button>' +
+                    '</div>' +
+                    '<div class="lflow-modal-body"></div>' +
+                    '<div class="lflow-modal-footer">' +
+                        '<button class="lflow-modal-close-btn button">Fermer</button>' +
+                    '</div>'
+                );
+                $overlay.append($modal);
+                $('body').append($overlay);
+
+                // Bind close events
+                $overlay.on('click', function(e) {
+                    if ($(e.target).is('#lflow-result-modal-overlay')) {
+                        LFLOW.hideResultModal();
+                    }
+                });
+                $overlay.on('click', '.lflow-modal-close, .lflow-modal-close-btn', function() {
+                    LFLOW.hideResultModal();
+                });
+                $(document).on('keydown.lflowmodal', function(e) {
+                    if (e.key === 'Escape') { LFLOW.hideResultModal(); }
+                });
+            }
+
+            // Build body content
+            var statusClass = isValid ? 'lflow-modal-status-valid' : 'lflow-modal-status-invalid';
+            var statusIcon  = isValid ? '✅' : '🚫';
+            var statusLabel = isValid ? 'Clé Valide' : 'Clé Bloquée / Désactivée';
+
+            var remainingHtml = '';
+            if (data.remaining !== null && data.remaining !== undefined) {
+                var remVal   = data.remaining;
+                var remClass = (remVal === 'N/A' || remVal === 0 || remVal === '0') ? 'lflow-modal-value-danger' : 'lflow-modal-value-ok';
+                remainingHtml = '<div class="lflow-modal-grid-item"><span class="lflow-modal-label">Activations restantes</span><span class="lflow-modal-value ' + remClass + '">' + $('<span>').text(String(remVal)).html() + '</span></div>';
+            }
+
+            var bodyHtml =
+                '<div class="lflow-modal-status-banner ' + statusClass + '">' +
+                    '<span class="lflow-modal-status-icon">' + statusIcon + '</span>' +
+                    '<span class="lflow-modal-status-label">' + statusLabel + '</span>' +
+                '</div>' +
+                '<div class="lflow-modal-grid">' +
+                    '<div class="lflow-modal-grid-item"><span class="lflow-modal-label">Clé testée (ID #' + licenseId + ')</span></div>' +
+                    (data.product_name ? '<div class="lflow-modal-grid-item"><span class="lflow-modal-label">Produit détecté</span><span class="lflow-modal-value">' + $('<span>').text(data.product_name).html() + '</span></div>' : '') +
+                    (data.status ? '<div class="lflow-modal-grid-item"><span class="lflow-modal-label">Statut API</span><span class="lflow-modal-value lflow-modal-status-code">' + $('<span>').text(data.status).html() + '</span></div>' : '') +
+                    remainingHtml +
+                    (data.error_code && data.error_code !== 'N/A' ? '<div class="lflow-modal-grid-item"><span class="lflow-modal-label">Code d\'erreur</span><span class="lflow-modal-value lflow-modal-value-danger">' + $('<span>').text(data.error_code).html() + '</span></div>' : '') +
+                '</div>' +
+                '<div class="lflow-modal-message">' + $('<span>').text(data.message || '').html() + '</div>';
+
+            $('#lflow-result-modal .lflow-modal-body').html(bodyHtml);
+
+            // Show modal
+            $overlay.addClass('lflow-modal-visible');
+            $('#lflow-result-modal').addClass('lflow-modal-open');
+        },
+
+        hideResultModal: function () {
+            $('#lflow-result-modal-overlay').removeClass('lflow-modal-visible');
+            $('#lflow-result-modal').removeClass('lflow-modal-open');
         },
 
         showNotice: function (message, type) {

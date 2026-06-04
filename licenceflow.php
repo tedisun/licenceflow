@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.5.3
+ * Version:     1.5.4
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.5.3' );
+define( 'LFLOW_VERSION',   '1.5.4' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -104,6 +104,15 @@ function lflow_register_api() {
 
 // ─── Activation / Deactivation ───────────────────────────────────────────────
 
+add_filter( 'cron_schedules', 'lflow_custom_cron_schedules' );
+function lflow_custom_cron_schedules( $schedules ) {
+    $schedules['thrice_daily'] = array(
+        'interval' => 8 * 3600, // 8 hours in seconds
+        'display'  => __( 'Trois fois par jour (toutes les 8 heures)', 'licenceflow' ),
+    );
+    return $schedules;
+}
+
 register_activation_hook( __FILE__, 'lflow_activate' );
 register_deactivation_hook( __FILE__, 'lflow_deactivate' );
 
@@ -114,18 +123,18 @@ function lflow_activate() {
     if ( ! wp_next_scheduled( 'lflow_daily_cron' ) ) {
         wp_schedule_event( time(), 'daily', 'lflow_daily_cron' );
     }
-    // Schedule daily key status audit at 18:00 local time
+    // Schedule audit cron thrice daily (every 8 hours, starting at next 06:00:00 local time)
     if ( ! wp_next_scheduled( 'lflow_daily_audit_cron' ) ) {
-        $time_string = '18:00:00';
+        $time_string = '06:00:00';
         $timezone    = wp_timezone();
         $datetime    = new DateTime( $time_string, $timezone );
         $timestamp   = $datetime->getTimestamp();
 
-        if ( $timestamp < time() ) {
-            $timestamp += DAY_IN_SECONDS;
+        while ( $timestamp < time() ) {
+            $timestamp += 8 * 3600; // Keep advancing by 8 hours until it is in the future
         }
 
-        wp_schedule_event( $timestamp, 'daily', 'lflow_daily_audit_cron' );
+        wp_schedule_event( $timestamp, 'thrice_daily', 'lflow_daily_audit_cron' );
     }
     flush_rewrite_rules();
 }
