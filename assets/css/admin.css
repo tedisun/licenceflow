@@ -334,6 +334,13 @@
 .lflow-status-expired   { background: #fcf0f1; color: #d63638; }
 .lflow-status-returned  { background: #fef8ee; color: #996600; }
 .lflow-status-redeemed  { background: #f0eeff; color: #5741d9; }
+.lflow-status-running   { background: #e2f0fd; color: #0b69a3; animation: lflow-pulse 1.5s infinite ease-in-out; }
+
+@keyframes lflow-pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
 
 .lflow-type-badge {
     display: inline-flex;

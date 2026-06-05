@@ -48,6 +48,9 @@ class LicenceFlow_Core {
         add_action( 'lflow_daily_cron',       array( $this, 'run_daily_cron' ) );
         add_action( 'lflow_daily_audit_cron', array( $this, 'run_daily_audit' ) );
         add_action( 'wp_loaded',              array( $this, 'maybe_schedule_audit_cron' ) );
+
+        // Action Scheduler
+        add_action( 'lflow_check_single_key', array( $this, 'handle_single_key_audit' ), 10, 2 );
     }
 
     public static function get_instance(): self {
@@ -547,10 +550,35 @@ class LicenceFlow_Core {
     }
 
     /**
-     * Run daily licence validation audit at 18:00
+     * Run daily licence validation audit at 18:00 (now thrice daily, every 8 hours)
+     * Triggers asynchronous key checks via Action Scheduler.
      */
     public function run_daily_audit(): void {
+        $this->start_audit_scan( false );
+    }
+
+    /**
+     * Start a new audit scan of all available Microsoft keys.
+     * Schedules individual key checks in Action Scheduler.
+     *
+     * @param bool $manual True if triggered manually, false if triggered by cron.
+     * @return int The number of keys scheduled for check.
+     */
+    public function start_audit_scan( bool $manual = false ): int {
         global $wpdb;
+
+        // Check if there is already a running scan to avoid concurrent queueing
+        $logs = get_option( 'lflow_audit_logs', array() );
+        if ( is_array( $logs ) ) {
+            foreach ( $logs as $log ) {
+                if ( isset( $log['status'] ) && $log['status'] === 'running' ) {
+                    $start_time = strtotime( $log['date'] ?? '' );
+                    if ( $start_time && ( time() - $start_time ) < 3600 ) {
+                        return 0; // Scan already running, skip starting a new one
+                    }
+                }
+            }
+        }
 
         $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
         if ( empty( $whitelisted_ids ) ) {
@@ -562,7 +590,7 @@ class LicenceFlow_Core {
                 'message'   => __( 'Aucun produit ou variation n\'est configuré pour l\'audit en ligne dans les Réglages.', 'licenceflow' ),
                 'anomalies' => array(),
             ) );
-            return; // No products configured for online audit
+            return 0; 
         }
         $ids_in = implode( ',', array_map( 'intval', $whitelisted_ids ) );
 
@@ -590,7 +618,7 @@ class LicenceFlow_Core {
                 'message'   => __( 'Aucune licence disponible en stock à vérifier.', 'licenceflow' ),
                 'anomalies' => array(),
             ) );
-            return;
+            return 0;
         }
 
         $microsoft_keys = array(); // license_id => [ 'row' => $row, 'key' => $plain_key ]
@@ -614,143 +642,251 @@ class LicenceFlow_Core {
                 'message'   => __( 'Aucune clé au format Microsoft 5x5 valide trouvée en stock parmi les produits configurés.', 'licenceflow' ),
                 'anomalies' => array(),
             ) );
+            return 0;
+        }
+
+        $scan_id = 'scan_' . time() . '_' . wp_generate_password( 4, false );
+        $total   = count( $microsoft_keys );
+
+        $start_message = $manual
+            ? sprintf( __( 'Scan manuel démarré : %d clés en file d\'attente...', 'licenceflow' ), $total )
+            : sprintf( __( 'Scan automatique démarré : %d clés en file d\'attente...', 'licenceflow' ), $total );
+
+        $this->log_audit_result( array(
+            'scan_id'   => $scan_id,
+            'date'      => current_time( 'Y-m-d H:i:s' ),
+            'status'    => 'running',
+            'checked'   => 0,
+            'total'     => $total,
+            'blocked'   => 0,
+            'message'   => $start_message,
+            'anomalies' => array(),
+        ) );
+
+        $index = 0;
+        foreach ( $microsoft_keys as $lid => $item ) {
+            if ( function_exists( 'as_schedule_single_action' ) ) {
+                as_schedule_single_action(
+                    time() + ( $index * 30 ),
+                    'lflow_check_single_key',
+                    array(
+                        'license_id' => $lid,
+                        'scan_id'    => $scan_id,
+                    ),
+                    'licenceflow-audit'
+                );
+            }
+            $index++;
+        }
+
+        return $total;
+    }
+
+    /**
+     * Audit a single license key. Triggered via Action Scheduler.
+     *
+     * @param int    $license_id
+     * @param string $scan_id
+     */
+    public function handle_single_key_audit( int $license_id, string $scan_id = '' ): void {
+        global $wpdb;
+
+        $license = LicenceFlow_License_DB::get( $license_id );
+        if ( ! $license ) {
+            if ( ! empty( $scan_id ) ) {
+                $this->update_scan_progress( $scan_id, $license_id, null );
+            }
             return;
         }
 
-        $anomalies = array();
-        $batch_size = 30;
-        $chunks = array_chunk( $microsoft_keys, $batch_size, true );
+        if ( $license['license_status'] !== 'available' ) {
+            if ( ! empty( $scan_id ) ) {
+                $this->update_scan_progress( $scan_id, $license_id, null );
+            }
+            return;
+        }
+
+        $plain_key = lflow_decrypt( $license['license_key'] );
+        if ( ! preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
+            if ( ! empty( $scan_id ) ) {
+                $this->update_scan_progress( $scan_id, $license_id, null );
+            }
+            return;
+        }
 
         $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
         $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
 
-        foreach ( $chunks as $chunk ) {
-            $batch_keys = array_column( $chunk, 'key' );
+        $response = wp_remote_post( $url, array(
+            'headers' => array(
+                'Content-Type'          => 'application/json',
+                'X-LicenceFlow-Api-Key' => $api_key,
+            ),
+            'body'    => wp_json_encode( array( 'keys' => array( $plain_key ) ) ),
+            'timeout' => 30,
+        ) );
 
-            $response = wp_remote_post( $url, array(
-                'headers' => array(
-                    'Content-Type'          => 'application/json',
-                    'X-LicenceFlow-Api-Key' => $api_key,
-                ),
-                'body'    => wp_json_encode( array( 'keys' => $batch_keys ) ),
-                'timeout' => 30,
-            ) );
+        $status = 'unknown';
+        $remaining = null;
+        $msg = '';
+        $error_code = '';
+        $product_name = '';
 
-            if ( is_wp_error( $response ) ) {
-                continue; // Skip batch on connection error
-            }
-
+        if ( ! is_wp_error( $response ) ) {
             $body_res = wp_remote_retrieve_body( $response );
             $data = json_decode( $body_res, true );
 
-            if ( empty( $data['success'] ) || empty( $data['results'] ) ) {
-                continue;
-            }
-
-            // Map results by key
-            $results_by_key = array();
-            foreach ( $data['results'] as $res ) {
-                if ( ! empty( $res['key'] ) ) {
-                    $results_by_key[ strtoupper( $res['key'] ) ] = $res;
-                }
-            }
-
-            foreach ( $chunk as $lid => $item ) {
-                $plain_key = strtoupper( $item['key'] );
-                if ( ! isset( $results_by_key[ $plain_key ] ) ) {
-                    continue;
-                }
-
-                $res = $results_by_key[ $plain_key ];
-
-                $row = $item['row'];
+            if ( ! empty( $data['success'] ) && ! empty( $data['results'] ) ) {
+                $res = $data['results'][0];
                 $status = $res['status'] ?? 'unknown';
                 $remaining = $res['remaining_activations'] ?? null;
+                $msg = $res['message'] ?? '';
+                $error_code = $res['error_code'] ?? '';
+                $product_name = $res['product_name'] ?? '';
+            }
+        } else {
+            $status = 'error';
+            $msg = $response->get_error_message();
+        }
 
-                // Détection d'une clé MAK générique (Office ou Windows)
-                $is_mak = ( ! empty( $res['product_name'] ) && strpos( strtolower( $res['product_name'] ), 'mak' ) !== false );
+        if ( $status === 'error' ) {
+            if ( ! empty( $scan_id ) ) {
+                $this->update_scan_progress( $scan_id, $license_id, null );
+            }
+            return;
+        }
 
-                // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
-                $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
-                if ( ! $is_office_2024_ltsc ) {
-                    $product = wc_get_product( $row['product_id'] );
-                    if ( $product ) {
-                        $product_name_lower = strtolower( $product->get_name() );
-                        $product_slug_lower = strtolower( $product->get_slug() );
-                        if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
-                             strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
-                            $is_office_2024_ltsc = true;
-                        }
-                    }
-                }
+        $is_mak = ( ! empty( $product_name ) && strpos( strtolower( $product_name ), 'mak' ) !== false );
 
-                // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
-                if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
-                    $status = 'blocked';
-                    $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
-                    $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
-                }
-
-                // If key is blocked or requires phone activation (ignore temporary API connection errors or timeouts)
-                if ( $status === 'blocked' || $status === 'phone_activation' ) {
-                    $row = $item['row'];
-                    $msg = $res['message'] ?? 'Bloquée par Microsoft.';
-                    if ( $status === 'phone_activation' ) {
-                        $msg = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
-                    }
-                    $date = current_time( 'Y-m-d H:i:s' );
-                    $admin_note = trim( $row['admin_notes'] ?? '' );
-                    $new_note = "[Audit $date] Retirée du stock : $msg";
-                    $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
-
-                    // Update key status to inactive
-                    LicenceFlow_License_DB::update( $lid, array(
-                        'license_status' => 'inactive',
-                        'admin_notes'    => $admin_note,
-                    ) );
-
-                    // Sync WooCommerce stock immediately
-                    $this->sync_product_stock( (int) $row['product_id'], (int) $row['variation_id'] );
-
-                    $anomalies[] = array(
-                        'license_id'   => $lid,
-                        'product_id'   => (int) $row['product_id'],
-                        'variation_id' => (int) $row['variation_id'],
-                        'key'          => $item['key'],
-                        'message'      => $msg,
-                    );
+        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_2024_ltsc ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
+                    $is_office_2024_ltsc = true;
                 }
             }
         }
 
-        // Log audit completion
-        $total_checked = count( $microsoft_keys );
-        $blocked_count = count( $anomalies );
-        $log_message   = sprintf(
-            /* translators: 1: total keys, 2: blocked keys */
-            _n(
-                'Audit terminé : %1$d clé vérifiée, %2$d clé bloquée/inactive retirée.',
-                'Audit terminé : %1$d clés vérifiées, %2$d clés bloquées/inactives retirées.',
-                $total_checked,
-                'licenceflow'
-            ),
-            $total_checked,
-            $blocked_count
-        );
+        if ( ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+            $status = 'blocked';
+            $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
+            $error_code = 'NO_ACTIVATIONS_LEFT';
+        }
 
-        $this->log_audit_result( array(
-            'date'      => current_time( 'Y-m-d H:i:s' ),
-            'status'    => 'completed',
-            'checked'   => $total_checked,
-            'blocked'   => $blocked_count,
-            'message'   => $log_message,
-            'anomalies' => $anomalies,
-        ) );
+        $anomaly = null;
 
-        // Email alert if anomalies are found
-        if ( ! empty( $anomalies ) ) {
-            $alert_email = LicenceFlow_Settings::get( 'lflow_alert_email', get_option( 'admin_email' ) );
-            $this->send_audit_alert_email( $anomalies, $alert_email );
+        if ( $status === 'blocked' || $status === 'phone_activation' ) {
+            $msg_clean = $msg ? $msg : 'Bloquée par Microsoft.';
+            if ( $status === 'phone_activation' ) {
+                $msg_clean = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
+            }
+            $date = current_time( 'Y-m-d H:i:s' );
+            $admin_note = trim( $license['admin_notes'] ?? '' );
+            $new_note = "[Audit $date] Retirée du stock : $msg_clean";
+            $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+            LicenceFlow_License_DB::update( $license_id, array(
+                'license_status' => 'inactive',
+                'admin_notes'    => $admin_note,
+            ) );
+
+            $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+
+            $prod_name = '#' . $license['product_id'];
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $prod_name = $product->get_name();
+                if ( ! empty( $license['variation_id'] ) ) {
+                    $variation = wc_get_product( $license['variation_id'] );
+                    if ( $variation && $variation->is_type( 'variation' ) ) {
+                        $prod_name .= ' — ' . wc_get_formatted_variation( $variation, true, false );
+                    }
+                }
+            }
+
+            $anomaly = array(
+                'license_id'   => $license_id,
+                'product_id'   => (int) $license['product_id'],
+                'variation_id' => (int) $license['variation_id'],
+                'product_name' => $prod_name,
+                'key'          => $plain_key,
+                'message'      => $msg_clean,
+            );
+        }
+
+        if ( ! empty( $scan_id ) ) {
+            $this->update_scan_progress( $scan_id, $license_id, $anomaly );
+        }
+    }
+
+    /**
+     * Update the progress of an active audit scan.
+     *
+     * @param string     $scan_id
+     * @param int        $license_id
+     * @param array|null $anomaly
+     */
+    public function update_scan_progress( string $scan_id, int $license_id, ?array $anomaly = null ): void {
+        $logs = get_option( 'lflow_audit_logs', array() );
+        if ( ! is_array( $logs ) ) {
+            return;
+        }
+
+        $updated = false;
+        foreach ( $logs as &$log ) {
+            if ( isset( $log['scan_id'] ) && $log['scan_id'] === $scan_id ) {
+                $log['checked']++;
+                
+                if ( $anomaly ) {
+                    $log['blocked']++;
+                    if ( ! isset( $log['anomalies'] ) ) {
+                        $log['anomalies'] = array();
+                    }
+                    $log['anomalies'][] = $anomaly;
+                }
+
+                $total   = $log['total'] ?? 0;
+                $checked = $log['checked'];
+                $blocked = $log['blocked'];
+
+                if ( $checked >= $total ) {
+                    $log['status'] = 'completed';
+                    $log['message'] = sprintf(
+                        /* translators: 1: total keys, 2: blocked keys */
+                        _n(
+                            'Audit terminé : %1$d clé vérifiée, %2$d clé bloquée/inactive retirée.',
+                            'Audit terminé : %1$d clés vérifiées, %2$d clés bloquées/inactives retirées.',
+                            $checked,
+                            'licenceflow'
+                        ),
+                        $checked,
+                        $blocked
+                    );
+                    
+                    if ( ! empty( $log['anomalies'] ) ) {
+                        $alert_email = LicenceFlow_Settings::get( 'lflow_alert_email', get_option( 'admin_email' ) );
+                        $this->send_audit_alert_email( $log['anomalies'], $alert_email );
+                    }
+                } else {
+                    $log['message'] = sprintf(
+                        __( 'Scan d\'audit en cours : %1$d/%2$d clés vérifiées (%3$d anomalies)...', 'licenceflow' ),
+                        $checked,
+                        $total,
+                        $blocked
+                    );
+                }
+                
+                $updated = true;
+                break;
+            }
+        }
+
+        if ( $updated ) {
+            update_option( 'lflow_audit_logs', $logs );
         }
     }
 

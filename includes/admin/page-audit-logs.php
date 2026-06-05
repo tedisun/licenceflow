@@ -10,11 +10,19 @@ defined( 'ABSPATH' ) || exit;
 $logs = get_option( 'lflow_audit_logs', array() );
 ?>
 <div class="wrap lflow-wrap">
-
-    <h1>
+ 
+    <h1 class="wp-heading-inline">
         <span class="dashicons dashicons-media-text" style="font-size: 23px; width:23px; height:23px; line-height:23px; margin-right: 6px;"></span>
         <?php esc_html_e( 'Historique des scans d\'audit', 'licenceflow' ); ?>
     </h1>
+    
+    <button type="button" id="lflow-trigger-audit-btn" class="page-title-action">
+        <span class="dashicons dashicons-update" style="font-size: 16px; width: 16px; height: 16px; line-height: 16px; margin-top: 3px; margin-right: 4px;"></span>
+        <?php esc_html_e( 'Lancer l\'analyse', 'licenceflow' ); ?>
+    </button>
+    <span id="lflow-audit-spinner" class="spinner" style="float: none; margin: 0 10px; vertical-align: middle;"></span>
+    
+    <hr class="wp-header-end">
     
     <p class="description" style="margin-bottom: 20px;">
         <?php esc_html_e( 'Retrouvez ici le journal des audits automatiques effectués toutes les 8 heures (à 06h00, 14h00 et 22h00). Ce système vérifie la validité de vos clés Microsoft et retire automatiquement du stock celles qui ont été bloquées ou dont le quota d\'activation MAK est épuisé.', 'licenceflow' ); ?>
@@ -42,7 +50,8 @@ $logs = get_option( 'lflow_audit_logs', array() );
                 </thead>
                 <tbody>
                     <?php foreach ( $logs as $index => $log ) : 
-                        $date_time = esc_html( lflow_format_date( $log['date'] ?? '', true ) );
+                        $ts = strtotime( $log['date'] ?? '' );
+                        $date_time = $ts ? esc_html( date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $ts ) ) : __( 'N/A', 'licenceflow' );
                         $status = esc_html( $log['status'] ?? 'completed' );
                         $checked = (int) ( $log['checked'] ?? 0 );
                         $blocked = (int) ( $log['blocked'] ?? 0 );
@@ -57,6 +66,9 @@ $logs = get_option( 'lflow_audit_logs', array() );
                         } elseif ( $status === 'error' ) {
                             $status_class .= ' lflow-status-expired';
                             $status_label = __( 'Échec', 'licenceflow' );
+                        } elseif ( $status === 'running' ) {
+                            $status_class .= ' lflow-status-running';
+                            $status_label = __( 'En cours', 'licenceflow' );
                         } else {
                             if ( $blocked > 0 ) {
                                 $status_class .= ' lflow-status-returned';
@@ -67,22 +79,22 @@ $logs = get_option( 'lflow_audit_logs', array() );
                             }
                         }
                     ?>
-                    <tr>
-                        <td style="padding: 12px 10px; vertical-align: middle;">
+                    <tr class="lflow-audit-log-row" data-scan-id="<?php echo esc_attr( $log['scan_id'] ?? '' ); ?>">
+                        <td class="lflow-log-date" style="padding: 12px 10px; vertical-align: middle;">
                             <strong><?php echo $date_time; ?></strong>
                         </td>
-                        <td style="padding: 12px 10px; vertical-align: middle;">
+                        <td class="lflow-log-status" style="padding: 12px 10px; vertical-align: middle;">
                             <span class="<?php echo $status_class; ?>"><?php echo $status_label; ?></span>
                         </td>
-                        <td style="padding: 12px 10px; vertical-align: middle; text-align: right; font-weight: 600;">
+                        <td class="lflow-log-checked" style="padding: 12px 10px; vertical-align: middle; text-align: right; font-weight: 600;">
                             <?php echo number_format_i18n( $checked ); ?>
                         </td>
-                        <td style="padding: 12px 10px; vertical-align: middle; text-align: right; font-weight: 600; color: <?php echo $blocked > 0 ? '#d63638' : '#007a46'; ?>;">
+                        <td class="lflow-log-blocked" style="padding: 12px 10px; vertical-align: middle; text-align: right; font-weight: 600; color: <?php echo $blocked > 0 ? '#d63638' : '#007a46'; ?>;">
                             <?php echo number_format_i18n( $blocked ); ?>
                         </td>
-                        <td style="padding: 12px 10px; vertical-align: middle;">
+                        <td class="lflow-log-message-cell" style="padding: 12px 10px; vertical-align: middle;">
                             <?php if ( ! empty( $message ) ) : ?>
-                                <span style="font-size: 0.9rem; display:block; font-weight: 500; color: #2c3338;"><?php echo $message; ?></span>
+                                <span class="lflow-log-message" style="font-size: 0.9rem; display:block; font-weight: 500; color: #2c3338;"><?php echo $message; ?></span>
                             <?php endif; ?>
                             
                             <?php if ( ! empty( $anomalies ) ) : ?>
@@ -120,7 +132,7 @@ $logs = get_option( 'lflow_audit_logs', array() );
                                     </ul>
                                 </details>
                             <?php elseif ( $checked > 0 && $blocked === 0 ) : ?>
-                                <span style="color: #007a46; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; margin-top: 4px;">
+                                <span class="lflow-all-valid-msg" style="color: #007a46; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; margin-top: 4px;">
                                     <span class="dashicons dashicons-yes-alt" style="font-size: 16px; width: 16px; height: 16px; color: #007a46; line-height: 16px;"></span>
                                     <?php esc_html_e( 'Toutes les clés testées sont valides.', 'licenceflow' ); ?>
                                 </span>

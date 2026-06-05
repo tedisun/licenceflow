@@ -18,6 +18,7 @@
             this.bindLiveSearch();
             this.initSearchableSelects();
             this.bindTestKeyBtn();
+            this.bindTriggerAuditBtn();
         },
 
         // ── Bulk actions ──────────────────────────────────────────────────────
@@ -806,6 +807,143 @@
         hideResultModal: function () {
             $('#lflow-result-modal-overlay').removeClass('lflow-modal-visible');
             $('#lflow-result-modal').removeClass('lflow-modal-open');
+        },
+
+        bindTriggerAuditBtn: function () {
+            // Button click handler
+            $(document).on('click', '#lflow-trigger-audit-btn', function (e) {
+                e.preventDefault();
+                var $btn = $(this);
+                var $spinner = $('#lflow-audit-spinner');
+
+                $btn.prop('disabled', true);
+                $spinner.addClass('is-active');
+
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_trigger_manual_audit',
+                    nonce: lflow_admin.nonce
+                }, function (response) {
+                    $spinner.removeClass('is-active');
+                    if (response.success) {
+                        LFLOW.showNotice(response.data.message, 'success');
+                        // Reload page so PHP renders the running scan row
+                        setTimeout(function () { location.reload(); }, 1000);
+                    } else {
+                        LFLOW.showNotice(response.data.message || lflow_admin.i18n.error, 'error');
+                        $btn.prop('disabled', false);
+                    }
+                }).fail(function () {
+                    $spinner.removeClass('is-active');
+                    LFLOW.showNotice(lflow_admin.i18n.error, 'error');
+                    $btn.prop('disabled', false);
+                });
+            });
+
+            // If a running scan is detected on page load, start polling
+            if ($('.lflow-status-running').length) {
+                LFLOW.startAuditProgressPolling();
+            }
+        },
+
+        auditInterval: null,
+
+        startAuditProgressPolling: function () {
+            if (LFLOW.auditInterval) {
+                clearInterval(LFLOW.auditInterval);
+            }
+            
+            // Poll every 5 seconds
+            LFLOW.auditInterval = setInterval(function () {
+                $.post(lflow_admin.ajax_url, {
+                    action: 'lflow_get_active_scan_progress',
+                    nonce: lflow_admin.nonce
+                }, function (response) {
+                    if (response.success && response.data.active) {
+                        var scan = response.data;
+                        var $row = $('.lflow-audit-log-row[data-scan-id="' + scan.scan_id + '"]');
+                        
+                        if ($row.length) {
+                            // Update checked count
+                            $row.find('.lflow-log-checked').text(scan.checked);
+                            
+                            // Update blocked count and color
+                            var $blockedCell = $row.find('.lflow-log-blocked');
+                            $blockedCell.text(scan.blocked);
+                            if (scan.blocked > 0) {
+                                $blockedCell.css('color', '#d63638');
+                            } else {
+                                $blockedCell.css('color', '#007a46');
+                            }
+                            
+                            // Update message
+                            var $msgCell = $row.find('.lflow-log-message-cell');
+                            $msgCell.find('.lflow-log-message').text(scan.message);
+                            
+                            // Update anomalies list
+                            if (scan.anomalies && scan.anomalies.length > 0) {
+                                var $details = $msgCell.find('details');
+                                if (!$details.length) {
+                                    $details = $('<details style="margin-top: 8px; cursor: pointer; font-size: 0.85rem; background: #fffcfc; border: 1px solid #f2e2e4; border-radius: 4px; padding: 8px 12px; outline: none; transition: background-color 0.2s;"><summary style="font-weight: 600; color: #b32124; list-style: none; display: flex; align-items: center; gap: 6px;"><span class="dashicons dashicons-arrow-down-alt2" style="font-size: 16px; width: 16px; height: 16px; line-height: 16px;"></span><span class="lflow-details-title"></span></summary><ul class="lflow-anomalies-list" style="margin: 10px 0 0 10px; list-style-type: none; padding: 0; line-height: 1.6; color: #1d2327;"></ul></details>');
+                                    $msgCell.find('.lflow-all-valid-msg').remove();
+                                    $msgCell.append($details);
+                                }
+                                
+                                $details.find('.lflow-details-title').text('Voir les ' + scan.anomalies.length + ' anomalie(s) détectée(s)');
+                                
+                                var $ul = $details.find('.lflow-anomalies-list');
+                                $ul.empty();
+                                
+                                scan.anomalies.forEach(function (anomaly) {
+                                    var truncKey = (anomaly.key || '').substring(0, 6) + '-XXXXX-...-' + (anomaly.key || '').substring((anomaly.key || '').length - 5);
+                                    var editUrl = lflow_admin.edit_url + '&license_id=' + anomaly.license_id;
+                                    var cleanName = anomaly.product_name || ('#' + anomaly.product_id);
+                                    
+                                    var $li = $('<li style="margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed #f0f0f1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">' +
+                                        '<a href="' + editUrl + '" target="_blank" style="font-weight:600; text-decoration: none; color: #2271b1;">#' + anomaly.license_id + '</a> ' +
+                                        '<span style="color: #646970;">|</span> ' +
+                                        '<span style="font-weight:500;">' + $('<span>').text(cleanName).html() + '</span> ' +
+                                        '<span style="color: #646970;">|</span> ' +
+                                        '<code style="background:#f0f0f1; color:#3c434a; padding:2px 6px; border-radius:3px; font-family: monospace; font-size: 0.85rem; font-weight: 500;">' + truncKey + '</code> ' +
+                                        '<span style="color: #646970;">|</span> ' +
+                                        '<span style="color:#d63638; font-weight:600;">' + $('<span>').text(anomaly.message).html() + '</span>' +
+                                    '</li>');
+                                    $ul.append($li);
+                                });
+                            }
+                        }
+                        
+                        // If scan completed, update status badge and stop polling
+                        if (scan.status !== 'running') {
+                            clearInterval(LFLOW.auditInterval);
+                            LFLOW.auditInterval = null;
+                            
+                            var statusClass = 'lflow-status-badge';
+                            var statusLabel = 'Terminé';
+                            
+                            if (scan.blocked > 0) {
+                                statusClass += ' lflow-status-returned';
+                                statusLabel = 'Alerte';
+                            } else {
+                                statusClass += ' lflow-status-available';
+                                statusLabel = 'Sain';
+                            }
+                            
+                            var $statusBadge = $row.find('.lflow-log-status span');
+                            $statusBadge.attr('class', statusClass).text(statusLabel);
+                            
+                            $('#lflow-trigger-audit-btn').prop('disabled', false);
+                            LFLOW.showNotice('Analyse d\'audit terminée !', 'success');
+                        }
+                    } else {
+                        clearInterval(LFLOW.auditInterval);
+                        LFLOW.auditInterval = null;
+                        $('#lflow-trigger-audit-btn').prop('disabled', false);
+                        location.reload();
+                    }
+                }).fail(function () {
+                    // Ignore errors, retry next cycle
+                });
+            }, 5000);
         },
 
         showNotice: function (message, type) {

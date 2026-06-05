@@ -32,6 +32,8 @@ class LicenceFlow_Admin {
         add_action( 'wp_ajax_lflow_regenerate_api_key',   array( $this, 'ajax_regenerate_api_key' ) );
         add_action( 'wp_ajax_lflow_check_update',          array( $this, 'ajax_check_update' ) );
         add_action( 'wp_ajax_lflow_test_license_key',      array( $this, 'ajax_test_license_key' ) );
+        add_action( 'wp_ajax_lflow_trigger_manual_audit',  array( $this, 'ajax_trigger_manual_audit' ) );
+        add_action( 'wp_ajax_lflow_get_active_scan_progress', array( $this, 'ajax_get_active_scan_progress' ) );
 
         // Quick CSV export (admin-post)
         add_action( 'admin_post_lflow_quick_export', array( $this, 'handle_quick_export' ) );
@@ -1096,5 +1098,88 @@ class LicenceFlow_Admin {
      */
     public static function edit_license_url( int $license_id ): string {
         return self::licenses_url( array( 'action' => 'edit', 'license_id' => $license_id ) );
+    }
+ 
+    /**
+     * AJAX handler to trigger a manual license key audit.
+     */
+    public function ajax_trigger_manual_audit(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        // Check if there is already a running scan to prevent duplicate scans
+        $logs = get_option( 'lflow_audit_logs', array() );
+        if ( is_array( $logs ) ) {
+            foreach ( $logs as $log ) {
+                if ( isset( $log['status'] ) && $log['status'] === 'running' ) {
+                    $start_time = strtotime( $log['date'] ?? '' );
+                    if ( $start_time && ( time() - $start_time ) < 3600 ) {
+                        wp_send_json_error( array(
+                            'message' => __( 'Une analyse est déjà en cours. Veuillez attendre qu\'elle se termine.', 'licenceflow' ),
+                        ) );
+                    }
+                }
+            }
+        }
+
+        $scheduled = LicenceFlow_Core::get_instance()->start_audit_scan( true );
+
+        if ( $scheduled === 0 ) {
+            wp_send_json_error( array(
+                'message' => __( 'Aucune clé disponible à vérifier ou configuration manquante.', 'licenceflow' ),
+            ) );
+        }
+
+        wp_send_json_success( array(
+            'message' => sprintf(
+                /* translators: %d: number of keys */
+                _n(
+                    'Analyse déclenchée : %d clé a été mise en file d\'attente (vérifications toutes les 30s).',
+                    'Analyse déclenchée : %d clés ont été mises en file d\'attente (vérifications toutes les 30s).',
+                    $scheduled,
+                    'licenceflow'
+                ),
+                $scheduled
+            ),
+        ) );
+    }
+
+    /**
+     * AJAX handler to get active scan progress.
+     */
+    public function ajax_get_active_scan_progress(): void {
+        LicenceFlow_Security::get_instance()->check_ajax_nonce( 'admin' );
+        LicenceFlow_Security::get_instance()->require_capability();
+
+        $logs = get_option( 'lflow_audit_logs', array() );
+        $active_scan = null;
+
+        if ( is_array( $logs ) && ! empty( $logs ) ) {
+            $first_log = $logs[0];
+            if ( isset( $first_log['status'] ) && $first_log['status'] === 'running' ) {
+                $active_scan = $first_log;
+            }
+        }
+
+        if ( $active_scan ) {
+            $ts = isset( $active_scan['date'] ) ? strtotime( $active_scan['date'] ) : time();
+            $formatted_date = date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $ts );
+
+            wp_send_json_success( array(
+                'active'    => true,
+                'scan_id'   => $active_scan['scan_id'] ?? '',
+                'date'      => $formatted_date,
+                'status'    => $active_scan['status'],
+                'checked'   => $active_scan['checked'],
+                'total'     => $active_scan['total'],
+                'blocked'   => $active_scan['blocked'],
+                'message'   => $active_scan['message'],
+                'anomalies' => $active_scan['anomalies'] ?? array(),
+            ) );
+        } else {
+            wp_send_json_success( array(
+                'active' => false,
+            ) );
+        }
     }
 }
