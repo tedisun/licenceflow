@@ -51,6 +51,7 @@ class LicenceFlow_Core {
 
         // Action Scheduler
         add_action( 'lflow_check_single_key', array( $this, 'handle_single_key_audit' ), 10, 2 );
+        add_action( 'lflow_recheck_inactive_key', array( $this, 'handle_recheck_inactive_key' ), 10, 1 );
     }
 
     public static function get_instance(): self {
@@ -249,28 +250,78 @@ class LicenceFlow_Core {
         if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) return;
 
         $target_id = $variation_id > 0 ? $variation_id : $product_id;
+        $product   = wc_get_product( $target_id );
+        if ( ! $product ) return;
 
-        // Only sync if WooCommerce stock management is already enabled on this product
+        // Force proper stock management settings based on product type
+        if ( $product->is_type( 'variable' ) ) {
+            // Variable parent: must NOT manage stock at the parent level
+            if ( get_post_meta( $target_id, '_manage_stock', true ) !== 'no' ) {
+                update_post_meta( $target_id, '_manage_stock', 'no' );
+            }
+        } elseif ( LicenceFlow_Product_Config::is_active( $product_id, $variation_id ) ) {
+            // Simple product or Variation: must manage stock if LicenceFlow is active
+            if ( get_post_meta( $target_id, '_manage_stock', true ) !== 'yes' ) {
+                update_post_meta( $target_id, '_manage_stock', 'yes' );
+            }
+        }
+
+        // Only sync if WooCommerce stock management is enabled on this product
         $manage_stock = get_post_meta( $target_id, '_manage_stock', true );
         if ( $manage_stock !== 'yes' ) return;
 
         // Use SUM(remaining_delivre_x_times) to count total delivery capacity
         global $wpdb;
         if ( $variation_id > 0 ) {
-            $count = (int) $wpdb->get_var( $wpdb->prepare(
+            $db_count = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT COALESCE(SUM(remaining_delivre_x_times), 0)
                  FROM {$wpdb->prefix}lflow_licenses
                  WHERE product_id = %d AND variation_id = %d AND license_status = 'available'",
                 $product_id, $variation_id
             ) );
         } else {
-            $count = (int) $wpdb->get_var( $wpdb->prepare(
+            $db_count = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT COALESCE(SUM(remaining_delivre_x_times), 0)
                  FROM {$wpdb->prefix}lflow_licenses
                  WHERE product_id = %d AND license_status = 'available'",
                 $product_id
             ) );
         }
+
+        // Account for keys that are already allocated to pending/unpaid orders
+        // but not yet marked as 'sold' or delivered in LicenceFlow.
+        $pending_qty = 0;
+        $uncompleted_orders = wc_get_orders( array(
+            'status'     => array( 'pending', 'on-hold', 'processing' ),
+            'limit'      => -1,
+            'meta_query' => array(
+                'relation' => 'OR',
+                array(
+                    'key'     => '_lflow_delivered',
+                    'compare' => 'NOT EXISTS',
+                ),
+                array(
+                    'key'     => '_lflow_delivered',
+                    'value'   => '1',
+                    'compare' => '!=',
+                ),
+            ),
+        ) );
+
+        if ( ! empty( $uncompleted_orders ) ) {
+            foreach ( $uncompleted_orders as $order ) {
+                foreach ( $order->get_items() as $item ) {
+                    $item_prod_id = (int) $item->get_product_id();
+                    $item_var_id  = (int) $item->get_variation_id();
+                    $item_target  = $item_var_id > 0 ? $item_var_id : $item_prod_id;
+                    if ( $item_target === $target_id ) {
+                        $pending_qty += (int) $item->get_quantity();
+                    }
+                }
+            }
+        }
+
+        $count = max( 0, $db_count - $pending_qty );
 
         if ( $count > 0 ) {
             update_post_meta( $target_id, '_stock', $count );
@@ -796,6 +847,17 @@ class LicenceFlow_Core {
 
             $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
 
+            if ( function_exists( 'as_schedule_single_action' ) ) {
+                as_schedule_single_action(
+                    time() + 600,
+                    'lflow_recheck_inactive_key',
+                    array(
+                        'license_id' => $license_id,
+                    ),
+                    'licenceflow-audit'
+                );
+            }
+
             $prod_name = '#' . $license['product_id'];
             $product = wc_get_product( $license['product_id'] );
             if ( $product ) {
@@ -820,6 +882,115 @@ class LicenceFlow_Core {
 
         if ( ! empty( $scan_id ) ) {
             $this->update_scan_progress( $scan_id, $license_id, $anomaly );
+        }
+    }
+
+    /**
+     * Recheck an inactive key 10 minutes after it failed the audit scan.
+     * If it is actually online/valid, reactivate it and restore stock.
+     *
+     * @param int $license_id
+     */
+    public function handle_recheck_inactive_key( int $license_id ): void {
+        global $wpdb;
+
+        $license = LicenceFlow_License_DB::get( $license_id );
+        if ( ! $license || $license['license_status'] !== 'inactive' ) {
+            return;
+        }
+
+        $plain_key = lflow_decrypt( $license['license_key'] );
+        if ( ! preg_match( '/^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/i', $plain_key ) ) {
+            return;
+        }
+
+        $url = 'https://licenceflow-checker.app.tedisun.com/v1/check';
+        $api_key = 'sk_lf_7b58cde3e5e4fa6b51df2f6d2e8b6a382e71d3c05b8aef52968840c1d683a219';
+
+        $response = wp_remote_post( $url, array(
+            'headers' => array(
+                'Content-Type'          => 'application/json',
+                'X-LicenceFlow-Api-Key' => $api_key,
+            ),
+            'body'    => wp_json_encode( array( 'keys' => array( $plain_key ) ) ),
+            'timeout' => 30,
+        ) );
+
+        $status = 'unknown';
+        $remaining = null;
+        $msg = '';
+        $error_code = '';
+        $product_name = '';
+
+        if ( ! is_wp_error( $response ) ) {
+            $body_res = wp_remote_retrieve_body( $response );
+            $data = json_decode( $body_res, true );
+
+            if ( ! empty( $data['success'] ) && ! empty( $data['results'] ) ) {
+                $res = $data['results'][0];
+                $status = $res['status'] ?? 'unknown';
+                $remaining = $res['remaining_activations'] ?? null;
+                $msg = $res['message'] ?? '';
+                $error_code = $res['error_code'] ?? '';
+                $product_name = $res['product_name'] ?? '';
+            }
+        } else {
+            $status = 'error';
+            $msg = $response->get_error_message();
+        }
+
+        // If there was a network/technical error during the recheck, we do nothing.
+        if ( $status === 'error' ) {
+            return;
+        }
+
+        $is_mak = ( ! empty( $product_name ) && strpos( strtolower( $product_name ), 'mak' ) !== false );
+        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_2024_ltsc ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
+                    $is_office_2024_ltsc = true;
+                }
+            }
+        }
+
+        if ( ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+            $status = 'blocked';
+            $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
+            $error_code = 'NO_ACTIVATIONS_LEFT';
+        }
+
+        $date = current_time( 'Y-m-d H:i:s' );
+        $admin_note = trim( $license['admin_notes'] ?? '' );
+
+        if ( $status === 'online_key' ) {
+            // Success! Reactivate the key
+            $new_note = "[Audit $date] Réactivée automatiquement après double vérification (10 min) : Clé en ligne active ($product_name, $remaining activations).";
+            $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+            LicenceFlow_License_DB::update( $license_id, array(
+                'license_status'            => 'available',
+                'remaining_delivre_x_times' => $license['delivre_x_times'] ?? 1,
+                'admin_notes'               => $admin_note,
+            ) );
+
+            $this->sync_product_stock( (int) $license['product_id'], (int) $license['variation_id'] );
+        } else {
+            // Confirmed deactivation
+            $msg_clean = $msg ? $msg : 'Bloquée par Microsoft.';
+            if ( $status === 'phone_activation' ) {
+                $msg_clean = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
+            }
+            $new_note = "[Audit $date] Double vérification (10 min) confirmée : La clé reste inactive ($msg_clean).";
+            $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
+
+            LicenceFlow_License_DB::update( $license_id, array(
+                'admin_notes' => $admin_note,
+            ) );
         }
     }
 
