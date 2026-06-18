@@ -288,11 +288,13 @@ class LicenceFlow_Core {
             ) );
         }
 
-        // Account for keys that are already allocated to pending/unpaid orders
+        // Account for keys that are already allocated to processing orders
         // but not yet marked as 'sold' or delivered in LicenceFlow.
+        // We do not reserve stock for unpaid orders (pending/on-hold) to avoid
+        // locking stock on temporary/failed payment attempts.
         $pending_qty = 0;
         $uncompleted_orders = wc_get_orders( array(
-            'status'     => array( 'pending', 'on-hold', 'processing' ),
+            'status'     => array( 'processing' ),
             'limit'      => -1,
             'meta_query' => array(
                 'relation' => 'OR',
@@ -309,17 +311,7 @@ class LicenceFlow_Core {
         ) );
 
         if ( ! empty( $uncompleted_orders ) ) {
-            $one_hour_ago = time() - HOUR_IN_SECONDS;
             foreach ( $uncompleted_orders as $order ) {
-                $status = $order->get_status();
-                // Exclude unpaid checkouts (pending/on-hold) older than 1 hour
-                if ( in_array( $status, array( 'pending', 'on-hold' ), true ) ) {
-                    $date_created = $order->get_date_created();
-                    if ( $date_created && $date_created->getTimestamp() < $one_hour_ago ) {
-                        continue;
-                    }
-                }
-
                 foreach ( $order->get_items() as $item ) {
                     $item_prod_id = (int) $item->get_product_id();
                     $item_var_id  = (int) $item->get_variation_id();
