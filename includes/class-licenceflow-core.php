@@ -309,13 +309,13 @@ class LicenceFlow_Core {
         ) );
 
         if ( ! empty( $uncompleted_orders ) ) {
-            $seven_days_ago = time() - ( 7 * DAY_IN_SECONDS );
+            $one_hour_ago = time() - HOUR_IN_SECONDS;
             foreach ( $uncompleted_orders as $order ) {
                 $status = $order->get_status();
-                // Exclude unpaid checkouts (pending/on-hold) older than 7 days
+                // Exclude unpaid checkouts (pending/on-hold) older than 1 hour
                 if ( in_array( $status, array( 'pending', 'on-hold' ), true ) ) {
                     $date_created = $order->get_date_created();
-                    if ( $date_created && $date_created->getTimestamp() < $seven_days_ago ) {
+                    if ( $date_created && $date_created->getTimestamp() < $one_hour_ago ) {
                         continue;
                     }
                 }
