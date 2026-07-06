@@ -830,6 +830,13 @@ class LicenceFlow_Core {
             $error_code = 'NO_ACTIVATIONS_LEFT';
         }
 
+        // If the error code indicates the key has already been activated
+        if ( ! empty( $error_code ) && strpos( strtolower( $error_code ), 'activated' ) !== false ) {
+            $status = 'blocked';
+            $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
+            $error_code = 'ALREADY_ACTIVATED';
+        }
+
         $anomaly = null;
 
         if ( $status === 'blocked' || $status === 'phone_activation' ) {
@@ -964,6 +971,13 @@ class LicenceFlow_Core {
             $status = 'blocked';
             $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
             $error_code = 'NO_ACTIVATIONS_LEFT';
+        }
+
+        // If the error code indicates the key has already been activated
+        if ( ! empty( $error_code ) && strpos( strtolower( $error_code ), 'activated' ) !== false ) {
+            $status = 'blocked';
+            $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
+            $error_code = 'ALREADY_ACTIVATED';
         }
 
         $date = current_time( 'Y-m-d H:i:s' );
