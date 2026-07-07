@@ -343,7 +343,7 @@ class LicenceFlow_Core {
         // Update WooCommerce stock using CRUD API to automatically handle indexation
         $product->set_stock_quantity( $count );
         
-        // Manually override stock status if $count > 0 to bypass WC notify threshold settings
+        // Setup initial status on product object
         if ( $count > 0 ) {
             $product->set_stock_status( 'instock' );
         } else {
@@ -357,6 +357,16 @@ class LicenceFlow_Core {
         
         $product->save();
 
+        // Force 'instock' status in database and lookup table to bypass WooCommerce threshold overrides
+        if ( $count > 0 ) {
+            update_post_meta( $target_id, '_stock_status', 'instock' );
+            $wpdb->update(
+                $wpdb->prefix . 'wc_product_meta_lookup',
+                array( 'stock_status' => 'instock' ),
+                array( 'product_id' => $target_id )
+            );
+        }
+
         // For variable products: re-sync the parent's stock status from its variations.
         if ( $variation_id > 0 ) {
             $parent = wc_get_product( $product_id );
@@ -365,13 +375,22 @@ class LicenceFlow_Core {
                 $data_store->sync_stock_status( $parent );
                 $parent->save();
                 
-                // Explicitly update parent lookup table to keep it in sync
-                wc_update_product_lookup_tables( $product_id );
+                // Force parent lookup table to instock if any variation is instock
+                if ( $parent->is_in_stock() ) {
+                    $wpdb->update(
+                        $wpdb->prefix . 'wc_product_meta_lookup',
+                        array( 'stock_status' => 'instock' ),
+                        array( 'product_id' => $product_id )
+                    );
+                } else {
+                    wc_update_product_lookup_tables( $product_id );
+                }
+            }
+        } else {
+            if ( $count === 0 ) {
+                wc_update_product_lookup_tables( $target_id );
             }
         }
-        
-        // Explicitly update target lookup table to keep it in sync
-        wc_update_product_lookup_tables( $target_id );
 
         // Clear WooCommerce product cache
         wc_delete_product_transients( $product_id );
@@ -408,9 +427,31 @@ class LicenceFlow_Core {
             return 0;
         }
 
+        $synced_targets = array();
         $count = 0;
+
         foreach ( $rows as $row ) {
-            $this->sync_product_stock( (int) $row['product_id'], (int) $row['variation_id'] );
+            $product_id   = (int) $row['product_id'];
+            $variation_id = (int) $row['variation_id'];
+            $target_id    = $variation_id > 0 ? $variation_id : $product_id;
+
+            if ( in_array( $target_id, $synced_targets, true ) ) {
+                continue;
+            }
+
+            $product = wc_get_product( $target_id );
+            if ( ! $product ) {
+                continue;
+            }
+
+            // Skip variable parent products to avoid duplicate syncs 
+            // (their variations will be processed, which automatically updates the parent)
+            if ( $product instanceof WC_Product_Variable ) {
+                continue;
+            }
+
+            $this->sync_product_stock( $product_id, $variation_id );
+            $synced_targets[] = $target_id;
             $count++;
         }
         return $count;
