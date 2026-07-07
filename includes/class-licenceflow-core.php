@@ -830,11 +830,41 @@ class LicenceFlow_Core {
             $error_code = 'NO_ACTIVATIONS_LEFT';
         }
 
-        // If the error code indicates the key has already been activated
+        // If the error code indicates the key has already been activated (Office 2016, 2019, 2021 only)
         if ( ! empty( $error_code ) && strpos( strtolower( $error_code ), 'activated' ) !== false ) {
-            $status = 'blocked';
-            $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
-            $error_code = 'ALREADY_ACTIVATED';
+            $is_office_16_19_21 = false;
+            if ( ! empty( $product_name ) ) {
+                $api_prod_lower = strtolower( $product_name );
+                if ( strpos( $api_prod_lower, 'office16' ) !== false || 
+                     strpos( $api_prod_lower, 'office19' ) !== false || 
+                     strpos( $api_prod_lower, 'office21' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2016' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2019' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2021' ) !== false ) {
+                    $is_office_16_19_21 = true;
+                }
+            }
+            if ( ! $is_office_16_19_21 ) {
+                $product = wc_get_product( $license['product_id'] );
+                if ( $product ) {
+                    $product_name_lower = strtolower( $product->get_name() );
+                    $product_slug_lower = strtolower( $product->get_slug() );
+                    if ( strpos( $product_name_lower, 'office 2016' ) !== false || 
+                         strpos( $product_name_lower, 'office 2019' ) !== false || 
+                         strpos( $product_name_lower, 'office 2021' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2016' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2019' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2021' ) !== false ) {
+                        $is_office_16_19_21 = true;
+                    }
+                }
+            }
+
+            if ( $is_office_16_19_21 ) {
+                $status = 'blocked';
+                $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
+                $error_code = 'ALREADY_ACTIVATED';
+            }
         }
 
         $anomaly = null;
@@ -973,11 +1003,41 @@ class LicenceFlow_Core {
             $error_code = 'NO_ACTIVATIONS_LEFT';
         }
 
-        // If the error code indicates the key has already been activated
+        // If the error code indicates the key has already been activated (Office 2016, 2019, 2021 only)
         if ( ! empty( $error_code ) && strpos( strtolower( $error_code ), 'activated' ) !== false ) {
-            $status = 'blocked';
-            $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
-            $error_code = 'ALREADY_ACTIVATED';
+            $is_office_16_19_21 = false;
+            if ( ! empty( $product_name ) ) {
+                $api_prod_lower = strtolower( $product_name );
+                if ( strpos( $api_prod_lower, 'office16' ) !== false || 
+                     strpos( $api_prod_lower, 'office19' ) !== false || 
+                     strpos( $api_prod_lower, 'office21' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2016' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2019' ) !== false ||
+                     strpos( $api_prod_lower, 'office 2021' ) !== false ) {
+                    $is_office_16_19_21 = true;
+                }
+            }
+            if ( ! $is_office_16_19_21 ) {
+                $product = wc_get_product( $license['product_id'] );
+                if ( $product ) {
+                    $product_name_lower = strtolower( $product->get_name() );
+                    $product_slug_lower = strtolower( $product->get_slug() );
+                    if ( strpos( $product_name_lower, 'office 2016' ) !== false || 
+                         strpos( $product_name_lower, 'office 2019' ) !== false || 
+                         strpos( $product_name_lower, 'office 2021' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2016' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2019' ) !== false ||
+                         strpos( $product_slug_lower, 'office-2021' ) !== false ) {
+                        $is_office_16_19_21 = true;
+                    }
+                }
+            }
+
+            if ( $is_office_16_19_21 ) {
+                $status = 'blocked';
+                $msg = __( 'La clé est déjà activée (activated with a product key).', 'licenceflow' );
+                $error_code = 'ALREADY_ACTIVATED';
+            }
         }
 
         $date = current_time( 'Y-m-d H:i:s' );
