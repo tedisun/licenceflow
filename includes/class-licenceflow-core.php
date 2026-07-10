@@ -274,12 +274,7 @@ class LicenceFlow_Core {
             return;
         }
 
-        // Simple product or Variation: must manage stock if LicenceFlow is active
-        if ( LicenceFlow_Product_Config::is_active( $product_id, $variation_id ) ) {
-            if ( get_post_meta( $target_id, '_manage_stock', true ) !== 'yes' ) {
-                update_post_meta( $target_id, '_manage_stock', 'yes' );
-            }
-        }
+
 
         // Only sync if WooCommerce stock management is enabled on this product
         $manage_stock = get_post_meta( $target_id, '_manage_stock', true );

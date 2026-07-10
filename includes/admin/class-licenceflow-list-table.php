@@ -35,6 +35,7 @@ class LicenceFlow_List_Table extends WP_List_Table {
             'license_type'    => __( 'Type', 'licenceflow' ),
             'license_status'  => __( 'Statut', 'licenceflow' ),
             'owner'           => __( 'Client', 'licenceflow' ),
+            'creation_date'   => __( "Date d'ajout", 'licenceflow' ),
             'sold_date'       => __( 'Date de vente', 'licenceflow' ),
             'expiration_date' => __( 'Expiration (admin)', 'licenceflow' ),
             'actions'         => __( 'Actions', 'licenceflow' ),
@@ -46,6 +47,7 @@ class LicenceFlow_List_Table extends WP_List_Table {
             'license_id'      => array( 'license_id', true ),
             'license_status'  => array( 'license_status', false ),
             'license_type'    => array( 'license_type', false ),
+            'creation_date'   => array( 'creation_date', false ),
             'sold_date'       => array( 'sold_date', false ),
             'expiration_date' => array( 'expiration_date', false ),
         );
@@ -210,6 +212,10 @@ class LicenceFlow_List_Table extends WP_List_Table {
             $out .= '<br><small><a href="' . esc_url( $order_url ) . '">#' . absint( $item['order_id'] ) . '</a></small>';
         }
         return $out;
+    }
+
+    protected function column_creation_date( $item ): string {
+        return lflow_format_date( $item['creation_date'] ?? '' );
     }
 
     protected function column_sold_date( $item ): string {
