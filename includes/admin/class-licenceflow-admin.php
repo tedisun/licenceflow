@@ -623,28 +623,52 @@ class LicenceFlow_Admin {
                     // Détection d'une clé MAK générique (Office ou Windows)
                     $is_mak = ( ! empty( $res['product_name'] ) && strpos( strtolower( $res['product_name'] ), 'mak' ) !== false );
 
-                    // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
-                    $is_office_2024_ltsc = ( (int) $row['product_id'] === 14335 );
-                    if ( ! $is_office_2024_ltsc ) {
+                    // Office LTSC detection (Office 2024 LTSC and Office 2021 LTSC)
+                    $is_office_ltsc = ( (int) $row['product_id'] === 14335 );
+                    if ( ! $is_office_ltsc ) {
                         $product = wc_get_product( $row['product_id'] );
                         if ( $product ) {
                             $product_name_lower = strtolower( $product->get_name() );
                             $product_slug_lower = strtolower( $product->get_slug() );
                             if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
-                                 strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
-                                $is_office_2024_ltsc = true;
+                                 strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ||
+                                 strpos( $product_slug_lower, 'office-2021-pro-plus-ltsc' ) !== false || 
+                                 strpos( $product_name_lower, 'office 2021 professionnel plus ltsc' ) !== false ||
+                                 strpos( $product_name_lower, 'office 2021 pro plus ltsc' ) !== false ) {
+                                $is_office_ltsc = true;
                             }
                         }
                     }
 
-                    // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
-                    if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+                    // Application du circuit de sécurité (MAK générique ou Office LTSC) - Seulement si pas d'erreur API
+                    if ( $status !== 'error' && ( $is_mak || $is_office_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
                         $status = 'blocked';
                         $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
                         $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
                     }
 
-                    if ( $status === 'blocked' || $status === 'phone_activation' ) {
+                    // Windows Server detection (exemption for phone activation)
+                    $is_windows_server = false;
+                    if ( ! empty( $res['product_name'] ) ) {
+                        $api_prod_lower = strtolower( $res['product_name'] );
+                        if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
+                             strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
+                            $is_windows_server = true;
+                        }
+                    }
+                    if ( ! $is_windows_server ) {
+                        $product = wc_get_product( $row['product_id'] );
+                        if ( $product ) {
+                            $product_name_lower = strtolower( $product->get_name() );
+                            $product_slug_lower = strtolower( $product->get_slug() );
+                            if ( strpos( $product_name_lower, 'windows server' ) !== false || 
+                                 strpos( $product_slug_lower, 'windows-server' ) !== false ) {
+                                $is_windows_server = true;
+                            }
+                        }
+                    }
+
+                    if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
                         $blocked_count++;
                         $row = $item['row'];
                         $msg = $res['message'] ?? 'Bloquée par Microsoft.';
@@ -923,29 +947,53 @@ class LicenceFlow_Admin {
         // Détection d'une clé MAK générique (Office ou Windows)
         $is_mak = ( ! empty( $result['product_name'] ) && strpos( strtolower( $result['product_name'] ), 'mak' ) !== false );
 
-        // Disjoncteur pour Office 2024 Professionnel Plus LTSC (ID 14335 ou nom/slug correspondant)
-        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
-        if ( ! $is_office_2024_ltsc ) {
+        // Office LTSC detection (Office 2024 LTSC and Office 2021 LTSC)
+        $is_office_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_ltsc ) {
             $product = wc_get_product( $license['product_id'] );
             if ( $product ) {
                 $product_name_lower = strtolower( $product->get_name() );
                 $product_slug_lower = strtolower( $product->get_slug() );
                 if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
-                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
-                    $is_office_2024_ltsc = true;
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_slug_lower, 'office-2021-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2021 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_name_lower, 'office 2021 pro plus ltsc' ) !== false ) {
+                    $is_office_ltsc = true;
                 }
             }
         }
 
-        // Application du circuit de sécurité (MAK générique ou Office 2024 LTSC) - Seulement si pas d'erreur API
-        if ( $status !== 'error' && ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+        // Application du circuit de sécurité (MAK générique ou Office LTSC) - Seulement si pas d'erreur API
+        if ( $status !== 'error' && ( $is_mak || $is_office_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
             $status = 'blocked';
             $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
             $error_code = 'NO_ACTIVATIONS_LEFT';
         }
 
+        // Windows Server detection (exemption for phone activation)
+        $is_windows_server = false;
+        if ( ! empty( $result['product_name'] ) ) {
+            $api_prod_lower = strtolower( $result['product_name'] );
+            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
+                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
+                $is_windows_server = true;
+            }
+        }
+        if ( ! $is_windows_server ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
+                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
+                    $is_windows_server = true;
+                }
+            }
+        }
+
         $formatted_msg = '';
-        if ( $status === 'blocked' || $status === 'phone_activation' ) {
+        if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
             $msg_clean = ( $status === 'phone_activation' ) ? __( 'Désactivée car nécessite une activation par téléphone alors qu\'une activation en ligne est promise.', 'licenceflow' ) : $msg;
             $formatted_msg = sprintf(
                 /* translators: 1: message, 2: error code */

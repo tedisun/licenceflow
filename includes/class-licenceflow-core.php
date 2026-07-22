@@ -869,20 +869,24 @@ class LicenceFlow_Core {
 
         $is_mak = ( ! empty( $product_name ) && strpos( strtolower( $product_name ), 'mak' ) !== false );
 
-        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
-        if ( ! $is_office_2024_ltsc ) {
+        // Office LTSC detection (Office 2024 LTSC and Office 2021 LTSC)
+        $is_office_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_ltsc ) {
             $product = wc_get_product( $license['product_id'] );
             if ( $product ) {
                 $product_name_lower = strtolower( $product->get_name() );
                 $product_slug_lower = strtolower( $product->get_slug() );
                 if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
-                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
-                    $is_office_2024_ltsc = true;
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_slug_lower, 'office-2021-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2021 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_name_lower, 'office 2021 pro plus ltsc' ) !== false ) {
+                    $is_office_ltsc = true;
                 }
             }
         }
 
-        if ( ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+        if ( ( $is_mak || $is_office_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
             $status = 'blocked';
             $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
             $error_code = 'NO_ACTIVATIONS_LEFT';
@@ -925,9 +929,30 @@ class LicenceFlow_Core {
             }
         }
 
+        // Windows Server detection (exemption for phone activation)
+        $is_windows_server = false;
+        if ( ! empty( $product_name ) ) {
+            $api_prod_lower = strtolower( $product_name );
+            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
+                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
+                $is_windows_server = true;
+            }
+        }
+        if ( ! $is_windows_server ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
+                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
+                    $is_windows_server = true;
+                }
+            }
+        }
+
         $anomaly = null;
 
-        if ( $status === 'blocked' || $status === 'phone_activation' ) {
+        if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
             $msg_clean = $msg ? $msg : 'Bloquée par Microsoft.';
             if ( $status === 'phone_activation' ) {
                 $msg_clean = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
@@ -1042,20 +1067,25 @@ class LicenceFlow_Core {
         }
 
         $is_mak = ( ! empty( $product_name ) && strpos( strtolower( $product_name ), 'mak' ) !== false );
-        $is_office_2024_ltsc = ( (int) $license['product_id'] === 14335 );
-        if ( ! $is_office_2024_ltsc ) {
+
+        // Office LTSC detection (Office 2024 LTSC and Office 2021 LTSC)
+        $is_office_ltsc = ( (int) $license['product_id'] === 14335 );
+        if ( ! $is_office_ltsc ) {
             $product = wc_get_product( $license['product_id'] );
             if ( $product ) {
                 $product_name_lower = strtolower( $product->get_name() );
                 $product_slug_lower = strtolower( $product->get_slug() );
                 if ( strpos( $product_slug_lower, 'office-2024-pro-plus-ltsc' ) !== false || 
-                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ) {
-                    $is_office_2024_ltsc = true;
+                     strpos( $product_name_lower, 'office 2024 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_slug_lower, 'office-2021-pro-plus-ltsc' ) !== false || 
+                     strpos( $product_name_lower, 'office 2021 professionnel plus ltsc' ) !== false ||
+                     strpos( $product_name_lower, 'office 2021 pro plus ltsc' ) !== false ) {
+                    $is_office_ltsc = true;
                 }
             }
         }
 
-        if ( ( $is_mak || $is_office_2024_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
+        if ( ( $is_mak || $is_office_ltsc ) && ( $remaining === null || $remaining === 'N/A' || ( is_numeric( $remaining ) && (int) $remaining <= 0 ) ) ) {
             $status = 'blocked';
             $msg = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
             $error_code = 'NO_ACTIVATIONS_LEFT';
@@ -1098,12 +1128,34 @@ class LicenceFlow_Core {
             }
         }
 
+        // Windows Server detection (exemption for phone activation)
+        $is_windows_server = false;
+        if ( ! empty( $product_name ) ) {
+            $api_prod_lower = strtolower( $product_name );
+            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
+                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
+                $is_windows_server = true;
+            }
+        }
+        if ( ! $is_windows_server ) {
+            $product = wc_get_product( $license['product_id'] );
+            if ( $product ) {
+                $product_name_lower = strtolower( $product->get_name() );
+                $product_slug_lower = strtolower( $product->get_slug() );
+                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
+                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
+                    $is_windows_server = true;
+                }
+            }
+        }
+
         $date = current_time( 'Y-m-d H:i:s' );
         $admin_note = trim( $license['admin_notes'] ?? '' );
 
-        if ( $status === 'online_key' ) {
+        if ( $status === 'online_key' || ( $status === 'phone_activation' && $is_windows_server ) ) {
             // Success! Reactivate the key
-            $new_note = "[Audit $date] Réactivée automatiquement après double vérification (10 min) : Clé en ligne active ($product_name, $remaining activations).";
+            $reactivation_reason = ( $status === 'phone_activation' ) ? 'Clé de type téléphone (autorisée pour Windows Server)' : 'Clé en ligne active';
+            $new_note = "[Audit $date] Réactivée automatiquement après double vérification (10 min) : $reactivation_reason ($product_name, $remaining activations).";
             $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
 
             LicenceFlow_License_DB::update( $license_id, array(
@@ -1175,6 +1227,9 @@ class LicenceFlow_Core {
                     if ( ! empty( $log['anomalies'] ) ) {
                         $alert_email = LicenceFlow_Settings::get( 'lflow_alert_email', get_option( 'admin_email' ) );
                         $this->send_audit_alert_email( $log['anomalies'], $alert_email );
+                        if ( LicenceFlow_Settings::is_on( 'lflow_audit_alert_whatsapp_enabled' ) ) {
+                            $this->send_audit_alert_whatsapp( $log['anomalies'] );
+                        }
                     }
                 } else {
                     $log['message'] = sprintf(
@@ -1239,6 +1294,83 @@ class LicenceFlow_Core {
         $body .= '<p style="font-size:0.85em; color:#646970; margin-top:30px;">' . esc_html__( 'Cet audit est exécuté automatiquement toutes les 8 heures (à 06h00, 14h00 et 22h00).', 'licenceflow' ) . '</p>';
 
         wp_mail( $to, $subject, $body, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    /**
+     * Send WhatsApp alert report for blocked licenses detected during the audit.
+     */
+    private function send_audit_alert_whatsapp( array $anomalies ): void {
+        $raw_phones = LicenceFlow_Settings::get( 'lflow_audit_alert_whatsapp', '' );
+        if ( empty( trim( $raw_phones ) ) ) {
+            $raw_phones = LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp', '' );
+        }
+        if ( empty( trim( $raw_phones ) ) ) {
+            return;
+        }
+
+        $phones = array_filter( array_map( 'trim', explode( ',', $raw_phones ) ) );
+        if ( empty( $phones ) ) {
+            return;
+        }
+
+        $total_count = count( $anomalies );
+        $display_count = min( $total_count, 5 );
+
+        $message = sprintf(
+            "⚠️ *[LicenceFlow]* Audit d'anomalies détectées :\n%d clé(s) Microsoft inactive(s) ou bloquée(s) retirée(s) du stock.\n\n",
+            $total_count
+        );
+
+        for ( $i = 0; $i < $display_count; $i++ ) {
+            $a = $anomalies[ $i ];
+            $product = wc_get_product( $a['product_id'] );
+            $pname   = $product ? $product->get_name() : '#' . $a['product_id'];
+            if ( $a['variation_id'] > 0 ) {
+                $variation = wc_get_product( $a['variation_id'] );
+                if ( $variation && $variation->is_type( 'variation' ) ) {
+                    $pname .= ' — ' . wc_get_formatted_variation( $variation, true, false );
+                }
+            }
+            $truncated_key = substr( $a['key'], 0, 6 ) . '-XXXXX-...-' . substr( $a['key'], -5 );
+            
+            $message .= sprintf(
+                "%d. ID #%d | %s\n🔑 Clé : %s\n❌ Motif : %s\n\n",
+                $i + 1,
+                $a['license_id'],
+                $pname,
+                $truncated_key,
+                $a['message']
+            );
+        }
+
+        if ( $total_count > 5 ) {
+            $message .= sprintf(
+                "... et *%d* autres anomalies détectées.\n\n",
+                $total_count - 5
+            );
+        }
+
+        $message .= "Accéder à la gestion : " . admin_url( 'admin.php?page=lflow-licenses' );
+
+        $country = LicenceFlow_Settings::get( 'lflow_audit_alert_whatsapp_country', '' );
+        if ( empty( $country ) ) {
+            $country = LicenceFlow_Settings::get( 'lflow_stock_alert_whatsapp_country', 'BF' );
+        }
+
+        if ( class_exists( 'WTAN_Api' ) ) {
+            foreach ( $phones as $raw_phone ) {
+                $phone = ( class_exists( 'WTAN_Phone' ) && $country )
+                    ? WTAN_Phone::normalize( $raw_phone, strtoupper( $country ) )
+                    : $raw_phone;
+
+                if ( $phone ) {
+                    $result = WTAN_Api::send( $phone, $message );
+                    if ( class_exists( 'WTAN_Logger' ) ) {
+                        WTAN_Logger::insert( 0, $phone, $result['success'] ?? false, $result['body'] ?? '' );
+                    }
+                }
+            }
+        }
     }
 
     // ── Admin bar ─────────────────────────────────────────────────────────────

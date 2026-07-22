@@ -539,6 +539,47 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <?php endif; ?>
             </div>
 
+            <!-- WhatsApp Audit Alerts Settings Card -->
+            <div class="lflow-card" style="max-width:800px; padding: 24px; border-radius: 6px; margin-top: 20px; border: 1px solid #c3c4c7; background: #fff;">
+                <h2 style="font-size: 1.15em; margin-top: 0; margin-bottom: 20px; font-weight: 600; color: #1d2327; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">
+                    <?php esc_html_e( 'Alertes d\'incident WhatsApp pour l\'audit', 'licenceflow' ); ?>
+                </h2>
+                <table class="form-table" role="presentation" style="margin: 0;">
+                    <tr>
+                        <th style="padding: 10px 10px 10px 0; width: 220px; font-weight: 600; color: #1d2327;">
+                            <label for="lflow_audit_alert_whatsapp_enabled"><?php esc_html_e( 'Activer les alertes WhatsApp', 'licenceflow' ); ?></label>
+                        </th>
+                        <td style="padding: 10px 0;">
+                            <input type="checkbox" id="lflow_audit_alert_whatsapp_enabled" name="lflow_audit_alert_whatsapp_enabled" value="on"
+                                <?php checked( LicenceFlow_Settings::is_on( 'lflow_audit_alert_whatsapp_enabled' ) ); ?>>
+                            <p class="description" style="margin: 4px 0 0;"><?php esc_html_e( 'Envoyer une notification WhatsApp lorsqu\'une clé est désactivée automatiquement ou qu\'un conflit est détecté lors de l\'audit.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 10px 10px 10px 0; width: 220px; font-weight: 600; color: #1d2327;">
+                            <label for="lflow_audit_alert_whatsapp"><?php esc_html_e( 'Numéro(s) WhatsApp d\'alerte', 'licenceflow' ); ?></label>
+                        </th>
+                        <td style="padding: 10px 0;">
+                            <input type="text" id="lflow_audit_alert_whatsapp" name="lflow_audit_alert_whatsapp" class="regular-text"
+                                   value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_audit_alert_whatsapp', '' ) ); ?>"
+                                   placeholder="+226XXXXXXXX">
+                            <p class="description" style="margin: 4px 0 0;"><?php esc_html_e( 'Séparer plusieurs numéros par des virgules. Si laissé vide, le numéro configuré dans l\'onglet Alertes Stock sera utilisé.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th style="padding: 10px 10px 10px 0; width: 220px; font-weight: 600; color: #1d2327;">
+                            <label for="lflow_audit_alert_whatsapp_country"><?php esc_html_e( 'Code pays WhatsApp', 'licenceflow' ); ?></label>
+                        </th>
+                        <td style="padding: 10px 0;">
+                            <input type="text" id="lflow_audit_alert_whatsapp_country" name="lflow_audit_alert_whatsapp_country" class="small-text"
+                                   value="<?php echo esc_attr( LicenceFlow_Settings::get( 'lflow_audit_alert_whatsapp_country', 'BF' ) ); ?>"
+                                   maxlength="2">
+                            <p class="description" style="margin: 4px 0 0;"><?php esc_html_e( 'Code pays par défaut à 2 lettres (ex: FR, BF) si les numéros ne contiennent pas le préfixe +.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
             <?php submit_button(); ?>
         </form>
     </div>

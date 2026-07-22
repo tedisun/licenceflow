@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.6.4
+ * Version:     1.6.5
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.6.4' );
+define( 'LFLOW_VERSION',   '1.6.5' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -293,6 +293,10 @@ function lflow_set_defaults() {
         'lflow_stock_alert_whatsapp'         => '+22654819666',
         'lflow_stock_alert_whatsapp_country' => 'BF',
         'lflow_stock_alert_webhook_url'      => '',
+        // Audit alerts
+        'lflow_audit_alert_whatsapp_enabled' => '',
+        'lflow_audit_alert_whatsapp'         => '',
+        'lflow_audit_alert_whatsapp_country' => 'BF',
     );
     foreach ( $defaults as $key => $value ) {
         if ( false === get_option( $key ) ) {

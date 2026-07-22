@@ -69,6 +69,9 @@ class LicenceFlow_Settings {
             'lflow_stock_alert_webhook_url'      => '',
             // Selective Microsoft Audit
             'lflow_auditable_product_ids'        => array(),
+            'lflow_audit_alert_whatsapp_enabled' => '',
+            'lflow_audit_alert_whatsapp'         => '',
+            'lflow_audit_alert_whatsapp_country' => 'BF',
         );
     }
 
@@ -149,6 +152,9 @@ class LicenceFlow_Settings {
 
         // Audit tab
         register_setting( 'lflow_settings_audit', 'lflow_auditable_product_ids', array( 'sanitize_callback' => array( $this, 'sanitize_int_array' ) ) );
+        register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp_enabled', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+        register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+        register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp_country', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
     }
 
     // ── Enc key migration ─────────────────────────────────────────────────────
