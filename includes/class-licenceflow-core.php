@@ -20,6 +20,10 @@ class LicenceFlow_Core {
         add_action( 'woocommerce_order_status_completed',  array( $this, 'maybe_deliver_on_completed' ), 1, 1 );
         add_action( 'woocommerce_order_status_processing', array( $this, 'maybe_deliver_on_processing' ), 1, 1 );
 
+        // Stock sync after WooCommerce stock reduction (priority 20 runs after WooCommerce stock reduction at priority 10)
+        add_action( 'woocommerce_order_status_completed',  array( $this, 'sync_order_stock_after_reduction' ), 20, 1 );
+        add_action( 'woocommerce_order_status_processing', array( $this, 'sync_order_stock_after_reduction' ), 20, 1 );
+
         // Admin bar notification
         add_action( 'admin_bar_menu', array( $this, 'admin_bar_node' ), 100 );
 
@@ -229,6 +233,24 @@ class LicenceFlow_Core {
     public function handle_order_status_changed( int $order_id, string $old_status, string $new_status ): void {
         if ( in_array( $new_status, array( 'cancelled', 'failed' ), true ) ) {
             $this->handle_refund( $order_id, 0 );
+        }
+    }
+
+    /**
+     * Run stock synchronization for all items in an order after WooCommerce has reduced its stock levels.
+     * Hooks into order status transitions at priority 20 (after WooCommerce stock reduction at priority 10).
+     */
+    public function sync_order_stock_after_reduction( int $order_id ): void {
+        if ( ! LicenceFlow_Settings::is_on( 'lflow_stock_sync' ) ) return;
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) return;
+
+        foreach ( $order->get_items() as $item ) {
+            $product_id   = (int) $item->get_product_id();
+            $variation_id = (int) $item->get_variation_id();
+            if ( LicenceFlow_Product_Config::is_active( $product_id, $variation_id ) ) {
+                $this->sync_product_stock( $product_id, $variation_id );
+            }
         }
     }
 
