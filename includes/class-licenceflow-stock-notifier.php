@@ -43,8 +43,9 @@ class LicenceFlow_Stock_Notifier {
         // Daily cron — catches stock drops from expirations
         add_action( 'lflow_daily_cron', array( $this, 'cron_check' ) );
 
-        // Clear all flags when the global threshold changes
+        // Clear all flags when the global threshold option changes
         add_action( 'update_option_lflow_stock_alert_threshold', array( $this, 'clear_all_state' ) );
+        add_action( 'update_option_lflow_stock_alert_groups',    array( $this, 'clear_all_state' ) );
     }
 
     public static function get_instance(): self {
@@ -70,7 +71,7 @@ class LicenceFlow_Stock_Notifier {
         }
 
         $stock     = LicenceFlow_License_DB::count_available( $product_id, $variation_id );
-        $threshold = $this->get_effective_threshold( $product_id );
+        $threshold = $this->get_effective_threshold( $product_id, $variation_id );
         $key       = $this->state_key( $product_id, $variation_id );
 
         if ( $stock <= $threshold ) {
@@ -96,7 +97,7 @@ class LicenceFlow_Stock_Notifier {
             return;
         }
         $stock     = LicenceFlow_License_DB::count_available( $product_id, $variation_id );
-        $threshold = $this->get_effective_threshold( $product_id );
+        $threshold = $this->get_effective_threshold( $product_id, $variation_id );
         if ( $stock > $threshold ) {
             $this->clear_notified( $this->state_key( $product_id, $variation_id ) );
         }
@@ -312,14 +313,44 @@ class LicenceFlow_Stock_Notifier {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Per-product threshold override (option lflow_stock_alert_threshold_{product_id})
-     * falls back to the global setting.
+     * Resolve the effective threshold for a given product or variation.
+     * Looks up groups (cached in memory), legacy option overrides, and defaults.
      */
-    private function get_effective_threshold( int $product_id ): int {
+    private function get_effective_threshold( int $product_id, int $variation_id = 0 ): int {
+        static $cached_groups = null;
+
+        if ( null === $cached_groups ) {
+            $cached_groups = get_option( 'lflow_stock_alert_groups', array() );
+            if ( ! is_array( $cached_groups ) ) {
+                $cached_groups = array();
+            }
+        }
+
+        // 1. Passe 1 : Recherche spécifique par variation
+        if ( $variation_id > 0 ) {
+            foreach ( $cached_groups as $group ) {
+                $products = array_map( 'intval', (array) ( $group['products'] ?? array() ) );
+                if ( in_array( $variation_id, $products, true ) ) {
+                    return max( 0, (int) ( $group['threshold'] ?? 2 ) );
+                }
+            }
+        }
+
+        // 2. Passe 2 : Recherche par produit parent (ou simple)
+        foreach ( $cached_groups as $group ) {
+            $products = array_map( 'intval', (array) ( $group['products'] ?? array() ) );
+            if ( in_array( $product_id, $products, true ) ) {
+                return max( 0, (int) ( $group['threshold'] ?? 2 ) );
+            }
+        }
+
+        // 3. Fallback: Option spécifique historique
         $override = get_option( 'lflow_stock_alert_threshold_' . $product_id, null );
         if ( null !== $override && is_numeric( $override ) ) {
             return max( 0, (int) $override );
         }
+
+        // 4. Seuil global
         return max( 0, (int) LicenceFlow_Settings::get( 'lflow_stock_alert_threshold', 2 ) );
     }
 

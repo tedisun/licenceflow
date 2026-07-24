@@ -418,6 +418,50 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                     </td>
                 </tr>
 
+                <!-- Alert groups -->
+                <tr>
+                    <th><?php esc_html_e( 'Groupes d\'alerte de stock', 'licenceflow' ); ?></th>
+                    <td>
+                        <p class="description" style="margin-bottom:12px;">
+                            <?php esc_html_e( 'Regroupez vos produits pour leur attribuer un seuil d\'alerte spécifique. Les produits non listés ici utiliseront le seuil global défini ci-dessus.', 'licenceflow' ); ?>
+                        </p>
+                        
+                        <?php
+                        $alert_groups = get_option( 'lflow_stock_alert_groups', [] );
+                        if ( ! is_array( $alert_groups ) ) {
+                            $alert_groups = [];
+                        }
+                        $all_products = LicenceFlow_Settings::get_all_product_options();
+                        ?>
+                        
+                        <table class="wp-list-table widefat fixed striped" id="lflow-alert-groups-table" style="max-width:850px; margin-bottom:12px;">
+                            <thead>
+                                <tr>
+                                    <th style="width:25%;"><?php esc_html_e( 'Nom du groupe', 'licenceflow' ); ?></th>
+                                    <th style="width:15%;"><?php esc_html_e( 'Seuil d\'alerte', 'licenceflow' ); ?></th>
+                                    <th><?php esc_html_e( 'Produits associés', 'licenceflow' ); ?></th>
+                                    <th style="width:50px;"><?php esc_html_e( 'Action', 'licenceflow' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lflow-alert-groups-body">
+                                <?php foreach ( $alert_groups as $index => $group ) : ?>
+                                    <?php LicenceFlow_Settings::render_alert_group_row( $index, $group, $all_products ); ?>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        
+                        <p>
+                            <button type="button" id="lflow-add-group-row" class="button">
+                                <?php esc_html_e( '+ Ajouter un groupe', 'licenceflow' ); ?>
+                            </button>
+                        </p>
+                        
+                        <template id="lflow-group-row-template">
+                            <?php LicenceFlow_Settings::render_alert_group_row( '__INDEX__', [], $all_products ); ?>
+                        </template>
+                    </td>
+                </tr>
+
             </table>
 
             <?php submit_button(); ?>
@@ -690,6 +734,70 @@ jQuery(document).ready(function($) {
     $('#lflow-audit-deselect-all').on('click', function(e) {
         e.preventDefault();
         $('#lflow-audit-products-grid input[type="checkbox"]:visible').prop('checked', false).trigger('change');
+    });
+
+    // ── Stock Alert Groups (Dynamic Rows & Select2) ──
+    
+    function initAlertGroupSelect2($el) {
+        if (typeof $.fn.select2 !== 'undefined') {
+            $el.select2({
+                placeholder: '<?php echo esc_js( __( 'Rechercher un produit ou une variation…', 'licenceflow' ) ); ?>',
+                allowClear: true,
+                width: '100%'
+            });
+        }
+    }
+
+    // Initialize on load
+    $('.lflow-alert-group-product-select').each(function() {
+        initAlertGroupSelect2($(this));
+    });
+
+    var lflowAlertGroupRowIndex = $('#lflow-alert-groups-body tr').length;
+
+    $('#lflow-add-group-row').on('click', function() {
+        var tpl = $('#lflow-group-row-template').html();
+        tpl = tpl.replace(/__INDEX__/g, lflowAlertGroupRowIndex);
+        var $row = $(tpl);
+        $('#lflow-alert-groups-body').append($row);
+        
+        // Initialize Select2 on the new row's dropdown
+        initAlertGroupSelect2($row.find('.lflow-alert-group-product-select'));
+        
+        lflowAlertGroupRowIndex++;
+    });
+
+    $(document).on('click', '.lflow-remove-group-row', function() {
+        $(this).closest('tr').remove();
+    });
+
+    // Detect duplicate selection warnings
+    $(document).on('change', '.lflow-alert-group-product-select', function() {
+        var selectedVal = $(this).val() || [];
+        var currentSelect = this;
+        var duplicates = [];
+        
+        $('.lflow-alert-group-product-select').not(currentSelect).each(function() {
+            var vals = $(this).val() || [];
+            selectedVal.forEach(function(val) {
+                if (vals.indexOf(val) !== -1 && duplicates.indexOf(val) === -1) {
+                    duplicates.push(val);
+                }
+            });
+        });
+        
+        if (duplicates.length > 0) {
+            var $td = $(this).closest('td');
+            if (!$td.find('.lflow-dup-warning').length) {
+                $td.append(
+                    '<div class="lflow-dup-warning" style="color:#d63638; font-size:11px; margin-top:4px;">' +
+                    '⚠️ <?php echo esc_js( __( 'Certains produits sélectionnés sont déjà associés à un autre groupe.', 'licenceflow' ) ); ?>' +
+                    '</div>'
+                );
+            }
+        } else {
+            $(this).closest('td').find('.lflow-dup-warning').remove();
+        }
     });
 });
 </script>

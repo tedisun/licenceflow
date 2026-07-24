@@ -149,6 +149,7 @@ class LicenceFlow_Settings {
         }
         register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_emails',      array( 'sanitize_callback' => array( $this, 'sanitize_emails_list' ) ) );
         register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_webhook_url', array( 'sanitize_callback' => array( $this, 'sanitize_url_option' ) ) );
+        register_setting( 'lflow_settings_stock_alerts', 'lflow_stock_alert_groups',      array( 'sanitize_callback' => array( $this, 'sanitize_stock_alert_groups' ) ) );
 
         // Audit tab
         register_setting( 'lflow_settings_audit', 'lflow_auditable_product_ids', array( 'sanitize_callback' => array( $this, 'sanitize_int_array' ) ) );
@@ -268,5 +269,116 @@ class LicenceFlow_Settings {
             return array();
         }
         return array_unique( array_map( 'absint', $value ) );
+    }
+
+    /**
+     * Sanitize stock alert groups option.
+     */
+    public function sanitize_stock_alert_groups( $value ): array {
+        if ( ! is_array( $value ) ) {
+            return array();
+        }
+
+        $clean_groups = array();
+        $raw_rows     = isset( $value['groups'] ) ? (array) $value['groups'] : array();
+
+        foreach ( $raw_rows as $row ) {
+            $name      = sanitize_text_field( $row['name'] ?? '' );
+            $threshold = isset( $row['threshold'] ) ? absint( $row['threshold'] ) : 2;
+            $products  = array_filter( array_map( 'absint', (array) ( $row['products'] ?? array() ) ) );
+
+            if ( empty( $name ) && empty( $products ) ) {
+                continue;
+            }
+
+            $clean_groups[] = array(
+                'name'      => $name,
+                'threshold' => $threshold,
+                'products'  => array_values( array_unique( $products ) ),
+            );
+        }
+
+        return $clean_groups;
+    }
+
+    /**
+     * Get a hierarchical list of all products and variations for selection.
+     */
+    public static function get_all_product_options(): array {
+        $options = array();
+        $licensed_products = LicenceFlow_Product_Config::get_licensed_products_for_select();
+        foreach ( $licensed_products as $prod_id => $prod_title ) {
+            $product = wc_get_product( $prod_id );
+            if ( ! $product ) continue;
+            
+            if ( $product->is_type( 'variable' ) ) {
+                $options[ $prod_id ] = sprintf( '📦 %s (ID: %d) [Toutes variations]', $prod_title, $prod_id );
+                $variations = LicenceFlow_Product_Config::get_variation_options( $prod_id );
+                foreach ( $variations as $var_id => $var_title ) {
+                    // Clean variation title
+                    $clean_var_title = str_replace( $prod_title . ' — ', '', $var_title );
+                    if ( $clean_var_title === $var_title ) {
+                        $clean_var_title = str_replace( $prod_title, '', $var_title );
+                    }
+                    $clean_var_title = ltrim( $clean_var_title, ' -,—' );
+                    $options[ $var_id ] = sprintf( '  ↳ %s (ID: %d)', $clean_var_title, $var_id );
+                }
+            } else {
+                $options[ $prod_id ] = sprintf( '%s (ID: %d)', $prod_title, $prod_id );
+            }
+        }
+        return $options;
+    }
+
+    /**
+     * Render a single row of the alert groups table.
+     */
+    public static function render_alert_group_row( $index, array $group, array $all_products ): void {
+        $name      = esc_attr( $group['name'] ?? '' );
+        $threshold = isset( $group['threshold'] ) ? absint( $group['threshold'] ) : 2;
+        $products  = (array) ( $group['products'] ?? array() );
+        ?>
+        <tr class="lflow-alert-group-row">
+            <td>
+                <input type="text"
+                       name="lflow_stock_alert_groups[groups][<?php echo esc_attr( $index ); ?>][name]"
+                       value="<?php echo esc_attr( $name ); ?>"
+                       placeholder="<?php esc_attr_e( 'Ex: Produits prioritaires', 'licenceflow' ); ?>"
+                       style="width:100%;" />
+            </td>
+            <td>
+                <input type="number"
+                       name="lflow_stock_alert_groups[groups][<?php echo esc_attr( $index ); ?>][threshold]"
+                       value="<?php echo absint( $threshold ); ?>"
+                       min="0" max="9999"
+                       style="width:100%;" />
+            </td>
+            <td>
+                <select name="lflow_stock_alert_groups[groups][<?php echo esc_attr( $index ); ?>][products][]"
+                        class="lflow-alert-group-product-select"
+                        multiple size="5" style="width:100%;">
+                    <?php foreach ( $all_products as $prod_id => $label ) : 
+                        // Indent style for variations
+                        $is_var = strpos( $label, '↳' ) !== false;
+                        $style = $is_var ? 'padding-left: 20px; font-style: italic;' : 'font-weight: 600;';
+                    ?>
+                        <option value="<?php echo absint( $prod_id ); ?>"
+                            <?php echo in_array( $prod_id, $products, true ) ? 'selected' : ''; ?>
+                            style="<?php echo esc_attr( $style ); ?>">
+                            <?php echo esc_html( $label ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="description" style="font-size:11px; display:block; margin-top:4px;">
+                    <?php esc_html_e( 'Ctrl / Cmd + clic pour sélection multiple', 'licenceflow' ); ?>
+                </span>
+            </td>
+            <td style="text-align:center; vertical-align:middle;">
+                <button type="button" class="button lflow-remove-group-row"
+                        style="color:#d63638; border-color:#d63638;"
+                        title="<?php esc_attr_e( 'Supprimer ce groupe', 'licenceflow' ); ?>">✕</button>
+            </td>
+        </tr>
+        <?php
     }
 }
