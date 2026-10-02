@@ -229,6 +229,33 @@ function lflow_current_user_can(): bool {
     return current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' );
 }
 
+/**
+ * Check if a product or variation is whitelisted for online PID audit verification.
+ * Supports checking parent product ID and variation ID with loose string/int matching.
+ *
+ * @param int $product_id
+ * @param int $variation_id
+ * @return bool
+ */
+function lflow_is_product_auditable( $product_id, $variation_id = 0 ): bool {
+    $whitelisted = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
+    if ( empty( $whitelisted ) || ! is_array( $whitelisted ) ) {
+        return false;
+    }
+    $whitelisted_strs = array_map( 'strval', $whitelisted );
+    $pid_str = (string) $product_id;
+    $vid_str = (string) $variation_id;
+
+    if ( in_array( $pid_str, $whitelisted_strs, false ) ) {
+        return true;
+    }
+    if ( $variation_id > 0 && in_array( $vid_str, $whitelisted_strs, false ) ) {
+        return true;
+    }
+    return false;
+}
+
+
 // ─── String utilities ─────────────────────────────────────────────────────────
 
 /**

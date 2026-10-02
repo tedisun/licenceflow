@@ -735,7 +735,7 @@ class LicenceFlow_Core {
                AND license_type = 'key' 
                AND remaining_delivre_x_times > 0
                AND (
-                   (variation_id = 0 AND product_id IN ($ids_in))
+                   product_id IN ($ids_in)
                    OR
                    (variation_id > 0 AND variation_id IN ($ids_in))
                )",

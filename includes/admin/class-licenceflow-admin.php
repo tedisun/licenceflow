@@ -536,13 +536,10 @@ class LicenceFlow_Admin {
         } elseif ( $action === 'verify_online' ) {
             // Bulk Microsoft validation
             $licenses = array();
-            $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
             foreach ( $license_ids as $lid ) {
                 $license = LicenceFlow_License_DB::get( $lid );
                 if ( $license && ( $license['license_type'] ?? 'key' ) === 'key' ) {
-                    $license_var_id = (int) ( $license['variation_id'] ?? 0 );
-                    $match_id       = $license_var_id > 0 ? $license_var_id : (int) $license['product_id'];
-                    if ( ! in_array( $match_id, $whitelisted_ids, true ) ) {
+                    if ( ! lflow_is_product_auditable( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) ) ) {
                         continue; // Skip products/variations not whitelisted for online audit
                     }
                     $plain_key = lflow_decrypt( $license['license_key'] ?? '' );
@@ -899,11 +896,7 @@ class LicenceFlow_Admin {
             wp_send_json_error( array( 'message' => __( 'Seules les licences de type "Clé de licence" peuvent être testées.', 'licenceflow' ) ) );
         }
 
-        $whitelisted_ids = LicenceFlow_Settings::get( 'lflow_auditable_product_ids', array() );
-        $license_var_id  = (int) ( $license['variation_id'] ?? 0 );
-        $match_id        = $license_var_id > 0 ? $license_var_id : (int) $license['product_id'];
-
-        if ( ! in_array( $match_id, $whitelisted_ids, true ) ) {
+        if ( ! lflow_is_product_auditable( (int) $license['product_id'], (int) ( $license['variation_id'] ?? 0 ) ) ) {
             wp_send_json_error( array( 'message' => __( "Ce produit ou cette variation n'est pas configuré(e) pour la vérification en ligne. Activez-le/la dans les Réglages.", 'licenceflow' ) ) );
         }
 
