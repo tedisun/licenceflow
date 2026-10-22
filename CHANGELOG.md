@@ -1,5 +1,11 @@
 # Changelog — LicenceFlow
 
+## [1.6.8] — 2026-10-22
+
+### Corrigé
+- **Suppression de l'exemption Windows Server** — Les clés Windows Server nécessitant une activation par téléphone (`phone_activation` / code `0x71` / 0 activation restante en ligne) sont désormais rigoureusement désactivées lors des tests unitaires, tests en masse et scans automatiques d'inventaire.
+- **Affichage des diagnostics de test** — Correction de l'affichage du compteur d'activations restantes pour ne plus afficher `(0 activations restantes)` sur une clé valide.
+
 ## [1.5.3] — 2026-06-03
 
 ### Ajouté

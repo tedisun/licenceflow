@@ -643,29 +643,7 @@ class LicenceFlow_Admin {
                         $res['message'] = __( 'Le nombre d\'activations restantes est à zéro ou indisponible.', 'licenceflow' );
                         $res['error_code'] = 'NO_ACTIVATIONS_LEFT';
                     }
-
-                    // Windows Server detection (exemption for phone activation)
-                    $is_windows_server = false;
-                    if ( ! empty( $res['product_name'] ) ) {
-                        $api_prod_lower = strtolower( $res['product_name'] );
-                        if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
-                             strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
-                            $is_windows_server = true;
-                        }
-                    }
-                    if ( ! $is_windows_server ) {
-                        $product = wc_get_product( $row['product_id'] );
-                        if ( $product ) {
-                            $product_name_lower = strtolower( $product->get_name() );
-                            $product_slug_lower = strtolower( $product->get_slug() );
-                            if ( strpos( $product_name_lower, 'windows server' ) !== false || 
-                                 strpos( $product_slug_lower, 'windows-server' ) !== false ) {
-                                $is_windows_server = true;
-                            }
-                        }
-                    }
-
-                    if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
+                    if ( $status === 'blocked' || $status === 'phone_activation' ) {
                         $blocked_count++;
                         $row = $item['row'];
                         $msg = $res['message'] ?? 'Bloquée par Microsoft.';
@@ -964,29 +942,8 @@ class LicenceFlow_Admin {
             $error_code = 'NO_ACTIVATIONS_LEFT';
         }
 
-        // Windows Server detection (exemption for phone activation)
-        $is_windows_server = false;
-        if ( ! empty( $result['product_name'] ) ) {
-            $api_prod_lower = strtolower( $result['product_name'] );
-            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
-                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
-                $is_windows_server = true;
-            }
-        }
-        if ( ! $is_windows_server ) {
-            $product = wc_get_product( $license['product_id'] );
-            if ( $product ) {
-                $product_name_lower = strtolower( $product->get_name() );
-                $product_slug_lower = strtolower( $product->get_slug() );
-                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
-                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
-                    $is_windows_server = true;
-                }
-            }
-        }
-
         $formatted_msg = '';
-        if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
+        if ( $status === 'blocked' || $status === 'phone_activation' ) {
             $msg_clean = ( $status === 'phone_activation' ) ? __( 'Désactivée car nécessite une activation par téléphone alors qu\'une activation en ligne est promise.', 'licenceflow' ) : $msg;
             $formatted_msg = sprintf(
                 /* translators: 1: message, 2: error code */
@@ -1037,8 +994,8 @@ class LicenceFlow_Admin {
                 $product_name,
                 $msg
             );
-            if ( $remaining !== null ) {
-                $formatted_msg .= ' (' . sprintf( __( '%d activations restantes', 'licenceflow' ), $remaining ) . ')';
+            if ( $remaining !== null && $remaining !== '' && is_numeric( $remaining ) && (int) $remaining > 0 ) {
+                $formatted_msg .= ' (' . sprintf( __( '%d activations restantes', 'licenceflow' ), (int) $remaining ) . ')';
             }
             $valid = true;
         }

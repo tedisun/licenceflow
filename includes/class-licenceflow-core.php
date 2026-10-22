@@ -951,30 +951,9 @@ class LicenceFlow_Core {
             }
         }
 
-        // Windows Server detection (exemption for phone activation)
-        $is_windows_server = false;
-        if ( ! empty( $product_name ) ) {
-            $api_prod_lower = strtolower( $product_name );
-            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
-                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
-                $is_windows_server = true;
-            }
-        }
-        if ( ! $is_windows_server ) {
-            $product = wc_get_product( $license['product_id'] );
-            if ( $product ) {
-                $product_name_lower = strtolower( $product->get_name() );
-                $product_slug_lower = strtolower( $product->get_slug() );
-                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
-                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
-                    $is_windows_server = true;
-                }
-            }
-        }
-
         $anomaly = null;
 
-        if ( $status === 'blocked' || ( $status === 'phone_activation' && ! $is_windows_server ) ) {
+        if ( $status === 'blocked' || $status === 'phone_activation' ) {
             $msg_clean = $msg ? $msg : 'Bloquée par Microsoft.';
             if ( $status === 'phone_activation' ) {
                 $msg_clean = __( 'Activation par téléphone uniquement (non autorisée pour la vente en ligne).', 'licenceflow' );
@@ -1150,33 +1129,12 @@ class LicenceFlow_Core {
             }
         }
 
-        // Windows Server detection (exemption for phone activation)
-        $is_windows_server = false;
-        if ( ! empty( $product_name ) ) {
-            $api_prod_lower = strtolower( $product_name );
-            if ( strpos( $api_prod_lower, 'windows server' ) !== false || 
-                 strpos( $api_prod_lower, 'windowsserver' ) !== false ) {
-                $is_windows_server = true;
-            }
-        }
-        if ( ! $is_windows_server ) {
-            $product = wc_get_product( $license['product_id'] );
-            if ( $product ) {
-                $product_name_lower = strtolower( $product->get_name() );
-                $product_slug_lower = strtolower( $product->get_slug() );
-                if ( strpos( $product_name_lower, 'windows server' ) !== false || 
-                     strpos( $product_slug_lower, 'windows-server' ) !== false ) {
-                    $is_windows_server = true;
-                }
-            }
-        }
-
         $date = current_time( 'Y-m-d H:i:s' );
         $admin_note = trim( $license['admin_notes'] ?? '' );
 
-        if ( $status === 'online_key' || ( $status === 'phone_activation' && $is_windows_server ) ) {
+        if ( $status === 'online_key' ) {
             // Success! Reactivate the key
-            $reactivation_reason = ( $status === 'phone_activation' ) ? 'Clé de type téléphone (autorisée pour Windows Server)' : 'Clé en ligne active';
+            $reactivation_reason = 'Clé en ligne active';
             $new_note = "[Audit $date] Réactivée automatiquement après double vérification (10 min) : $reactivation_reason ($product_name, $remaining activations).";
             $admin_note = $admin_note ? $admin_note . "\n" . $new_note : $new_note;
 
