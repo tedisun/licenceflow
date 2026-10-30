@@ -72,6 +72,8 @@ class LicenceFlow_Settings {
             'lflow_audit_alert_whatsapp_enabled' => '',
             'lflow_audit_alert_whatsapp'         => '',
             'lflow_audit_alert_whatsapp_country' => 'BF',
+            // Audit cron master kill-switch — OFF by default. Admin must opt-in explicitly in Settings.
+            'lflow_audit_cron_enabled'           => '',
         );
     }
 
@@ -156,6 +158,7 @@ class LicenceFlow_Settings {
         register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp_enabled', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
         register_setting( 'lflow_settings_audit', 'lflow_audit_alert_whatsapp_country', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
+        register_setting( 'lflow_settings_audit', 'lflow_audit_cron_enabled', array( 'sanitize_callback' => array( $this, 'sanitize_option' ) ) );
     }
 
     // ── Enc key migration ─────────────────────────────────────────────────────

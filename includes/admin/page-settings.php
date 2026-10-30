@@ -583,6 +583,34 @@ $base_url = admin_url( 'admin.php?page=lflow-settings' );
                 <?php endif; ?>
             </div>
 
+            <!-- Audit cron master kill-switch Card (added v1.6.9) -->
+            <?php $__lflow_cron_is_on = LicenceFlow_Settings::is_on( 'lflow_audit_cron_enabled' ); ?>
+            <div class="lflow-card" style="max-width:800px; padding: 24px; border-radius: 6px; margin-top: 20px; border: 1px solid <?php echo $__lflow_cron_is_on ? '#c3c4c7' : '#d63638'; ?>; background: <?php echo $__lflow_cron_is_on ? '#fff' : '#fcf0f1'; ?>;">
+                <h2 style="font-size: 1.15em; margin-top: 0; margin-bottom: 10px; font-weight: 600; color: #1d2327; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">
+                    <?php esc_html_e( 'Audit automatique (cron 3× par jour)', 'licenceflow' ); ?>
+                    <?php if ( ! $__lflow_cron_is_on ) : ?>
+                        <span style="background:#d63638;color:#fff;border-radius:3px;padding:2px 8px;font-size:12px;margin-left:8px;vertical-align:middle;"><?php esc_html_e( 'DÉSACTIVÉ', 'licenceflow' ); ?></span>
+                    <?php else : ?>
+                        <span style="background:#00a32a;color:#fff;border-radius:3px;padding:2px 8px;font-size:12px;margin-left:8px;vertical-align:middle;"><?php esc_html_e( 'ACTIF', 'licenceflow' ); ?></span>
+                    <?php endif; ?>
+                </h2>
+                <p style="margin:0 0 16px;color:#50575e;font-size:13px;line-height:1.5;">
+                    <?php esc_html_e( 'Interrupteur maître du cron d\'audit (06h / 14h / 22h). Désactivé par défaut depuis la v1.6.9 suite à la détection de faux positifs qui désactivaient à tort du stock sain (Windows Server, Office Retail). Ne réactiver qu\'après validation des correctifs IID non-déterministe + statut quarantine + cache/rate-limit.', 'licenceflow' ); ?>
+                </p>
+                <table class="form-table" role="presentation" style="margin: 0;">
+                    <tr>
+                        <th style="padding: 10px 10px 10px 0; width: 220px; font-weight: 600; color: #1d2327;">
+                            <label for="lflow_audit_cron_enabled"><?php esc_html_e( 'Activer l\'audit automatique', 'licenceflow' ); ?></label>
+                        </th>
+                        <td style="padding: 10px 0;">
+                            <input type="checkbox" id="lflow_audit_cron_enabled" name="lflow_audit_cron_enabled" value="on"
+                                <?php checked( $__lflow_cron_is_on ); ?>>
+                            <p class="description" style="margin: 4px 0 0;"><?php esc_html_e( 'Si décoché, aucun audit ne s\'exécute en automatique. Le bouton « Tester » reste disponible manuellement sur chaque clé.', 'licenceflow' ); ?></p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
             <!-- WhatsApp Audit Alerts Settings Card -->
             <div class="lflow-card" style="max-width:800px; padding: 24px; border-radius: 6px; margin-top: 20px; border: 1px solid #c3c4c7; background: #fff;">
                 <h2 style="font-size: 1.15em; margin-top: 0; margin-bottom: 20px; font-weight: 600; color: #1d2327; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px;">

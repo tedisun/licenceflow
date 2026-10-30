@@ -1,5 +1,12 @@
 # Changelog — LicenceFlow
 
+## [1.6.9] — 2026-10-30
+
+### Correctif critique
+- **Kill-switch cron audit automatique** — ajout d'une option maîtresse `lflow_audit_cron_enabled` (OFF par défaut) dans *Réglages → Audit & Vérification*. Suite à la détection de faux positifs qui désactivaient à tort du stock sain (Windows Server, Office Retail) à cause d'un IID d'activation déterministe envoyé à Microsoft qui déclenchait systématiquement `0x71` / `0xC004C008` sur chaque re-check, le cron audit (06h / 14h / 22h) est désormais **désactivé par défaut** et doit être réactivé manuellement par l'admin une fois les correctifs IID + statut quarantine en production. Le bouton « Tester » manuel reste disponible.
+- **Migration de sécurité** — à l'activation ou à la mise à jour depuis une version <1.6.9, tout horaire existant de `lflow_daily_audit_cron` est automatiquement supprimé.
+- **Défense en profondeur** — triple garde-fou : hook d'activation, scheduler auto-réparant `maybe_schedule_audit_cron`, et handler `run_daily_audit` vérifient tous l'option. Même un hook planifié qui survit à la mise à jour ne déclenchera aucun audit.
+
 ## [1.6.8] — 2026-10-22
 
 ### Corrigé

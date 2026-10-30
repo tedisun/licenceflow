@@ -3,7 +3,7 @@
  * Plugin Name: LicenceFlow
  * Plugin URI:  https://tedisun.com/licenceflow
  * Description: Digital license & subscription delivery for WooCommerce. Sell keys, accounts, invitation links and access codes — automatically delivered on purchase.
- * Version:     1.6.8
+ * Version:     1.6.9
  * Author:      Tedisun SARL
  * Author URI:  https://tedisun.com
  * Text Domain: licenceflow
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-define( 'LFLOW_VERSION',   '1.6.8' );
+define( 'LFLOW_VERSION',   '1.6.9' );
 define( 'LFLOW_FILE',      __FILE__ );
 define( 'LFLOW_PATH',      plugin_dir_path( __FILE__ ) );
 define( 'LFLOW_URL',       plugin_dir_url( __FILE__ ) );
@@ -124,17 +124,23 @@ function lflow_activate() {
         wp_schedule_event( time(), 'daily', 'lflow_daily_cron' );
     }
     // Schedule audit cron thrice daily (every 8 hours, starting at next 06:00:00 local time)
-    if ( ! wp_next_scheduled( 'lflow_daily_audit_cron' ) ) {
-        $time_string = '06:00:00';
-        $timezone    = wp_timezone();
-        $datetime    = new DateTime( $time_string, $timezone );
-        $timestamp   = $datetime->getTimestamp();
+    // Only if the admin kill-switch option is explicitly enabled.
+    if ( 'on' === get_option( 'lflow_audit_cron_enabled', '' ) ) {
+        if ( ! wp_next_scheduled( 'lflow_daily_audit_cron' ) ) {
+            $time_string = '06:00:00';
+            $timezone    = wp_timezone();
+            $datetime    = new DateTime( $time_string, $timezone );
+            $timestamp   = $datetime->getTimestamp();
 
-        while ( $timestamp < time() ) {
-            $timestamp += 8 * 3600; // Keep advancing by 8 hours until it is in the future
+            while ( $timestamp < time() ) {
+                $timestamp += 8 * 3600; // Keep advancing by 8 hours until it is in the future
+            }
+
+            wp_schedule_event( $timestamp, 'thrice_daily', 'lflow_daily_audit_cron' );
         }
-
-        wp_schedule_event( $timestamp, 'thrice_daily', 'lflow_daily_audit_cron' );
+    } else {
+        // Safety: ensure no stale schedule survives when the kill-switch is off.
+        wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
     }
     flush_rewrite_rules();
 }
@@ -227,6 +233,12 @@ function lflow_maybe_upgrade_db() {
     // option already exists, so this is safe to call on every upgrade path).
     lflow_set_defaults();
 
+    // v1.6.9 safety migration: force-clear the automated audit cron for existing installs so
+    // admins must explicitly re-enable it via Settings → Audit after reviewing the new logic.
+    if ( version_compare( $installed, '1.6.9', '<' ) ) {
+        wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
+    }
+
     global $wpdb;
 
     // Add index on remaining_delivre_x_times if missing (used by best-fit delivery)
@@ -297,6 +309,8 @@ function lflow_set_defaults() {
         'lflow_audit_alert_whatsapp_enabled' => '',
         'lflow_audit_alert_whatsapp'         => '',
         'lflow_audit_alert_whatsapp_country' => 'BF',
+        // Audit cron master kill-switch — OFF by default. Admin must opt-in explicitly in Settings.
+        'lflow_audit_cron_enabled'           => '',
     );
     foreach ( $defaults as $key => $value ) {
         if ( false === get_option( $key ) ) {

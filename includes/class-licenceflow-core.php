@@ -687,6 +687,10 @@ class LicenceFlow_Core {
      * Triggers asynchronous key checks via Action Scheduler.
      */
     public function run_daily_audit(): void {
+        // Master kill-switch: if the admin has not opted-in, do nothing even if a stale schedule fires.
+        if ( 'on' !== get_option( 'lflow_audit_cron_enabled', '' ) ) {
+            return;
+        }
         $this->start_audit_scan( false );
     }
 
@@ -1465,12 +1469,21 @@ class LicenceFlow_Core {
      * Verify and automatically reschedule the audit cron if needed.
      */
     public function maybe_schedule_audit_cron(): void {
+        // Master kill-switch: when the admin has not opted-in, make sure the cron is NOT scheduled
+        // and return early so this self-healing scheduler never re-arms it against the admin's will.
+        if ( 'on' !== get_option( 'lflow_audit_cron_enabled', '' ) ) {
+            if ( wp_next_scheduled( 'lflow_daily_audit_cron' ) ) {
+                wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
+            }
+            return;
+        }
+
         $schedule = wp_get_schedule( 'lflow_daily_audit_cron' );
         if ( 'thrice_daily' !== $schedule ) {
             if ( $schedule ) {
                 wp_clear_scheduled_hook( 'lflow_daily_audit_cron' );
             }
-            
+
             $time_string = '06:00:00';
             $timezone    = wp_timezone();
             $datetime    = new DateTime( $time_string, $timezone );
